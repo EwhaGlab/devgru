@@ -1,0 +1,17 @@
+
+
+isaac_sim data
+
+1. cd utils/process_data
+
+python  gen_pose_pkl_from_isaacim_csv.py -i "ISAACSIM_DATA_DIR"
+
+(ex) python gen_pose_pkl_from_isaacim_csv.py -i /media/data/mydata/isaacsim_dataset/0509/data
+
+
+2. cd train
+
+python 
+
+(ex) python data_split_isaacsim.py -i /media/data/mydata/isaacsim_dataset/0509/data -s 0.8 -o /media/data/mydata/viznav/data_splits/isaacsim/0509
+

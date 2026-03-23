@@ -1,0 +1,125 @@
+
+# global params for diffusion model
+# normalized min and max
+action_stats:
+  min: [-2.5, -4] # [min_dx, min_dy]
+  max: [5, 4] # [max_dx, max_dy]
+
+# data specific params
+recon:    
+  metric_waypoint_spacing: 0.25 # average spacing between waypoints (meters)
+
+  # OPTIONAL (FOR VISUALIZATION ONLY)
+  camera_metrics: # https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html
+    camera_height: 0.95 # meters
+    camera_x_offset: 0.45 # distance between the center of the robot and the forward facing camera
+    camera_matrix:
+      fx: 272.547000
+      fy: 266.358000
+      cx: 320.000000
+      cy: 220.000000
+    dist_coeffs:
+      k1: -0.038483
+      k2: -0.010456
+      p1: 0.003930
+      p2: -0.001007
+      k3: 0.0
+
+former: # 10 hz
+  img_width: 640
+  img_height: 480
+  img_fps:   10                     # avg FPS of the captured rgb-d images 
+  max_vx_pf: 0.0489  # meter per a frame (0.3 m/s)
+  min_vx_pf: 0 # meter per a frame
+  max_vy_pf: 0.04  # meter per a frame
+  min_vy_pf: -0.04 # meter per a frame
+  max_vang_pf: 0.0629    # rad per a frame
+  min_vang_pf: -0.078   # rad per a frame
+  metric_frame_spacing: 0.03     # median per a frame metric distance ( m )  
+  angle_frame_spacing:  0.06     # median per a frame angle  distance ( rad )   
+  max_speed:  0.3                   # max speed of the robot (m/s) 
+  gamma: 1.4                    # for the normalization
+  camera_matrics:
+    image_height: 480               # orig img height
+    image_width:  640               # orig img width
+    cam_wrt_base: [0.185, 0.033, 0.084, -1.308, 0.013, -1.560] # bHc x(m) y(m) z(m) rol(rad) pit(rad) yaw(rad)
+    camera_matrix:              # check D435 cam parameters of Former (camera/color/optical_frame/camera_info)
+      fx: 605.03894
+      fy: 604.27289
+      cx: 322.05383
+      cy: 240.08105
+    dist_coeffs:
+      k1: 0.0
+      k2: 0.0
+      p1: 0.0
+      p2: 0.0
+      k3: 0.0
+
+#thud:
+  #metric_waypoint_spacing: 0.033
+
+isaac_sim:
+  img_width: 1280
+  img_height: 720
+  img_fps:  10  # check
+  max_vx_pf: 0.0800  # meter per a frame
+  min_vx_pf: -0.0491 # meter per a frame
+  max_vy_pf: 0.0583  # meter per a frame
+  min_vy_pf: -0.0466 # meter per a frame
+  max_vang_pf: 0.12    # rad per a frame
+  min_vang_pf: -0.12   # rad per a frame
+  # check if this info is correct
+  metric_frame_spacing: 0.08  #  meter    
+  angle_frame_spacing : 0.12  #  radian  
+  max_speed:    0.5 # 0.99  # meter per sec
+  gamma: 1.4                    # for the normalization
+  camera_matrics:
+    cam_wrt_base: [0.104, 0.000, 0.700, -1.571, 0, -1.571]  # (bHc) odom records the cam pose
+    camera_matrix:
+      fx: 303.24561
+      fy: 303.24561
+      cx: 640
+      cy: 360
+    dist_coeffs:
+      k1: 0.0
+      k2: 0.0
+      p1: 0.0
+      p2: 0.0
+      k3: 0.0
+  
+#scand:
+  #metric_waypoint_spacing: 0.38 
+
+#tartan_drive:
+  #metric_waypoint_spacing: 0.72
+
+#go_stanford:
+  #metric_waypoint_spacing: 0.12  # distance btwn waypoints (i.e. odom positions saved in in .pkl file)
+
+#private datasets:
+#cory_hall:
+  #metric_waypoint_spacing: 0.06
+
+#seattle:
+  #metric_waypoint_spacing: 0.35
+
+#racer:
+  #metric_waypoint_spacing: 0.38
+
+#carla_intvns:
+  #metric_waypoint_spacing: 1.39
+
+#carla_cil:
+  #metric_waypoint_spacing: 1.27
+
+#carla_intvns:
+  #metric_waypoint_spacing: 1.39
+
+#carla:
+  #metric_waypoint_spacing: 1.59
+  #image_path_func: get_image_path
+
+#sacson:
+  #metric_waypoint_spacing: 0.255
+
+# add your own dataset params here:

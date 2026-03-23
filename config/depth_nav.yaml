@@ -1,0 +1,128 @@
+project_name: depth-nav-release
+run_name: depth-nav
+
+# training setup
+use_wandb: False # set to false if you don't want to log to wandb
+train: True
+batch_size: 256    # 32 for colldata,  256 for navdata
+epochs: 100 #75
+gpu_ids: [0]
+num_workers: 12
+lr: 5e-4
+optimizer: adamw
+clipping: False
+max_norm: 1.
+scheduler: "cosine"
+warmup: True 
+warmup_epochs: 4
+cyclic_period: 10
+plateau_patience: 3
+plateau_factor: 0.5
+seed: 0
+
+# model params
+model_type: "dev_gru" #"depth_coll" # #"image_pose_rnn"
+obs_encoder: "efficientnet-b0" # by default, this is imagenet pretrained
+obs_encoding_size: 512
+odom_encoding_size: 64
+mha_num_attention_heads: 4
+mha_num_attention_layers: 4
+mha_ff_dim_factor: 4
+late_fusion: False
+
+# normalization for the action space
+normalize: True
+
+# context
+context_type: temporal
+context_size: 5
+
+# weight params when computing loss
+alpha: 0.9  # tradeoff between action and distance prediction loss
+beta: 0.5   # tradoff between orient and waypt prediction (when learn_angle is True)
+# distance bounds for distance and action and distance predictions 
+distance:
+  min_frame_dist: 0
+  max_frame_dist: 24
+action:
+  min_frame_dist: 0
+  max_frame_dist: 12
+#close_far_threshold: 10 # distance threshold used to seperate the close and the far  subgoals that are sampled per datapoint
+
+goal_dist_type: spatial #temporal
+
+# action output params
+len_traj_pred: 5  
+learn_angle: True 
+
+# dataset specific parameters
+image_size: [85, 64] # width, height
+goal_type: depth ##"rgb" # depth
+
+use_time_weight: False #True
+
+#################################################################
+# The dataset used for train_former.py (negative collision only)
+datasets:
+  former: 
+    data_folder: /media/mydata/former_datasets/former_all
+    train: /media/data/mydata/viznav/data_splits/former_all/ws3/train 
+    test:  /media/data/mydata/viznav/data_splits/former_all/ws3/test  
+    end_slack: 3
+    goals_per_obs: 1
+    negative_mining: True
+    waypoint_spacing: 3 #1      # frame_to_frame spacing  
+    
+  #isaac_sim: 
+    #data_folder: /media/data/mydata/isaacsim_dataset/0512/data #/media/data/pubdata/viznav_dataset/former/data_splits/train
+    #train: /media/data/mydata/viznav/data_splits/isaacsim/0512/train 
+    #test:  /media/data/mydata/viznav/data_splits/isaacsim/0512/test  
+
+    #end_slack: 3
+    #goals_per_obs: 1
+    #negative_mining: True
+
+# logging stuff
+## =0 turns off
+print_log_freq: 100 # in iterations
+image_log_freq: 1000 #0 # in iterations
+num_images_log: 24 #16 #8 #0 
+pairwise_test_freq: 0 # in epochs
+eval_fraction: 0.25
+wandb_log_freq: 10 # in iterations
+eval_freq: 1 # in epochs
+
+#################################################################
+# The dataset used for train_colldata.py (positive + negative collision data)
+collision_datasets:
+  former:
+    data_folder: /media/data/mydata/former_datasets/colldata/col-10K_fixed/noncol_04K-col_10K 
+    train: /media/data/mydata/viznav/data_splits/former_collision/noncol_04K-col_10K/train
+    test:  /media/data/mydata/viznav/data_splits/former_collision/noncol_04K-col_10K/test
+    waypoint_spacing: 3
+##################################################################
+# used for deployment 
+##################################################################
+deployment:
+    dataset_name: former
+    topomap_name: T0 #T32 #T1-1 # 
+    nav_model_type: dev_gru
+    col_model_type: depth_coll  # depth_sg_coll
+    use_coll_pred_model: True
+    goal_type: depth
+    waypoint_spacing: 3
+    subgoal_spacing: 1  # sg frames to skip (1 skips none, 2 skips 1) 
+    xy_dist_thr: 0.5    # meter    
+    ang_dist_thr: 5     # deg
+    nav_ckpth_name: devgru-last_dim_32.pth # devgru-base.pth # #devgru-two_heads-mixed_12K.pth 
+    col_ckpth_name: dev_coll-depth_only-20K.pth #dev_coll-curr_sg-20K.pth #   
+    nav_log_dir: /media/glab/FetchSSD/results/base_lines/devgru
+    #ckpth_name: image_pose_rnn-ws3.pth
+
+##################################################################
+# used for testing 
+##################################################################
+test:
+    test_dataset_path: /media/data/mydata/former_datasets/colldata/colldata-test
+    out_res_path:  /media/results/devgru/devgru_tester/colldata-test/devgru-noncol_08K_col_10K_test-last_dim_32
+

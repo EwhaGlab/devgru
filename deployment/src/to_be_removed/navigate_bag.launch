@@ -1,0 +1,9 @@
+<!-- -->
+
+<launch>
+    <!-- launch bag file-->
+    <node>
+    
+    </node>
+    
+</launch>

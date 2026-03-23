@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="PYTHON_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$/../../diffusion_policy">
+      <sourceFolder url="file://$MODULE_DIR$/../../diffusion_policy" isTestSource="false" />
+    </content>
+    <content url="file://$MODULE_DIR$" />
+    <orderEntry type="jdk" jdkName="vint_train" jdkType="Python SDK" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="deployment" />
+  </component>
+</module>
