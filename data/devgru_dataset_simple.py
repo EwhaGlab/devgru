@@ -68,7 +68,6 @@ class Collision_Dataset_Simple(Dataset):
             waypoint_spacing (int): Spacing between waypoints
             min_frame_dist (int): Minimum distance (frame) to use
             max_frame_dist (int): Maximum distance (frame) to use
-            negative_mining (bool): Whether to use negative mining from the ViNG paper (Shah et al.) (https://arxiv.org/abs/2012.09812)
             len_traj_pred (int): Length of trajectory of waypoints to predict if this is an action dataset
             learn_angle (bool): Whether to learn the orientation of the robot at each predicted waypoint if this is an action dataset
             context_size (int): Number of previous observations to use as context

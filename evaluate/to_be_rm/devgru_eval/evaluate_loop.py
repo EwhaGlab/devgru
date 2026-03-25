@@ -9,11 +9,7 @@ BASE_DIR = dirname(dirname(abspath(__file__)))
 import sys
 sys.path.append(BASE_DIR)
 
-from models.image_rnn.image_rnn import ImageRNN
-from models.image_rnn.image_pg_rnn import ImagePGRNN
-from models.image_rnn.image_pose_rnn import ImagePoseRNN
-
-from depth_nav_eval.eval_utils import evaluate
+from devgru.eval_utils import evaluate
 #from depth_nav_train.training.train_utils import train_nomad, evaluate_nomad
 
 import torch
@@ -38,7 +34,7 @@ def evaluate_loop(
     eval_fraction: float = 0.25,
 ):
     """
-    Train and evaluate the model for several epochs (vint or gnm models)
+    Train and evaluate the model
 
     Args:
         model: model to train
@@ -86,7 +82,7 @@ def load_model(
     """Load a model from a checkpoint file (works with models trained on multiple GPUs)"""
     model_type = config["deployment"]["model_type"]
 
-    if model_type == "image_pose_rnn":
+    if model_type == "devgru":
         if config["goal_type"] == "rgb":
             model = ImagePoseRNN(
                 context_size=config["context_size"],
@@ -107,63 +103,19 @@ def load_model(
                 odom_encoding_size=config["odom_encoding_size"],
                 num_ch=1,
             )
-
-    elif model_type == "image_pg_rnn":
-        if config["goal_type"] == "rgb":
-            model = ImagePGRNN(
-                context_size=config["context_size"],
-                len_traj_pred=config["len_traj_pred"],
-                learn_angle=config["learn_angle"],
-                obs_encoder=config["obs_encoder"],
-                obs_encoding_size=config["obs_encoding_size"],
-                odom_encoding_size=config["odom_encoding_size"],
-                num_ch=3,
-            )
-        else:
-            model = ImagePGRNN(
-                context_size=config["context_size"],
-                len_traj_pred=config["len_traj_pred"],
-                learn_angle=config["learn_angle"],
-                obs_encoder=config["obs_encoder"],
-                obs_encoding_size=config["obs_encoding_size"],
-                odom_encoding_size=config["odom_encoding_size"],
-                num_ch=1,
-            )
-    elif model_type == "image_rnn":
-        if config["goal_type"] == "rgb":
-            model = ImageRNN(
-                context_size=config["context_size"],
-                len_traj_pred=config["len_traj_pred"],
-                learn_angle=config["learn_angle"],
-                obs_encoder=config["obs_encoder"],
-                obs_encoding_size=config["obs_encoding_size"],
-                num_ch=3,
-            )
-        else:
-            model = ImageRNN(
-                context_size=config["context_size"],
-                len_traj_pred=config["len_traj_pred"],
-                learn_angle=config["learn_angle"],
-                obs_encoder=config["obs_encoder"],
-                obs_encoding_size=config["obs_encoding_size"],
-                num_ch=1,
-            )
-
     else:
         raise ValueError(f"Invalid model type: {model_type}")
 
     checkpoint = torch.load(model_path, map_location=device)
-    if model_type == "nomad":
-        state_dict = checkpoint
+
+    loaded_model = checkpoint["model"]
+    try:
+        state_dict = loaded_model.module.state_dict()
         model.load_state_dict(state_dict, strict=False)
-    else:
-        loaded_model = checkpoint["model"]
-        try:
-            state_dict = loaded_model.module.state_dict()
-            model.load_state_dict(state_dict, strict=False)
-        except AttributeError as e:
-            state_dict = loaded_model.state_dict()
-            model.load_state_dict(state_dict, strict=False)
+    except AttributeError as e:
+        state_dict = loaded_model.state_dict()
+        model.load_state_dict(state_dict, strict=False)
+
     model.to(device)
     return model
 

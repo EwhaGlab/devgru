@@ -33,122 +33,116 @@ from utils.visualizing.visualize_utils import (
     MAGENTA,
 )
 
-from data.data_utils import (
-    _get_rel_pose_se2,
-#    _normalize_pose,
-)
-
 X_VIZ_START_OFFSET = 1.0 #0.6    # offset to xdir of base_link pose. We add this num to present the start pt in the image (hard coded for isaac sim)
 
 with open(BASE_DIR + "/config/data_config.yaml", "r") as f:
     data_config = yaml.safe_load(f)
 
-with open(BASE_DIR + "/config/depth_nav.yaml", "r") as f:
+with open(BASE_DIR + "/config/devgru.yaml", "r") as f:
     nav_config = yaml.safe_load(f)
 
-
-def visualize_coll_pred(
-    batch_data_info: tuple,
-    np_batch_obs_images: np.ndarray,           # img size : VISUALIZATION_IMAGE_SIZE = (160, 120)
-    np_batch_goal_image: np.ndarray,           # img size : VISUALIZATION_IMAGE_SIZE = (160, 120)
-    np_batch_obs_depths: np.ndarray,           # img size : VISUALIZATION_IMAGE_SIZE = (160, 120)
-    np_batch_goal_depth: np.ndarray,           # img size : VISUALIZATION_IMAGE_SIZE = (160, 120)
-    dataset_indices: np.ndarray,
-    batch_goals: np.ndarray,                   # denormalized old sub_goal poses
-    batch_collision_pred: np.ndarray,
-    batch_collision_label:np.ndarray,
-    eval_type: str,
-    normalized: bool,
-    save_folder: str,
-    epoch: int,
-    num_images_preds: int = 8,
-    use_wandb: bool = True,
-    display: bool = False,
-):
-    """
-    Compare predicted path with the gt path of waypoints using egocentric visualization. This visualization is for the last batch in the dataset.
-
-    Args:
-        batch_obs_images (np.ndarray): batch of observation images [batch_size, height, width, channels]   (height, width) = (160, 120)
-        batch_goal_images (np.ndarray): batch of goal images [batch_size, height, width, channels]
-        dataset_names: indices corresponding to the dataset name
-        batch_goals (np.ndarray): batch of goal positions [batch_size, 2]
-        eval_type (string): f"{data_type}_{eval_type}" (e.g. "recon_train", "gs_test", etc.)
-        normalized (bool): whether the waypoints are normalized
-        save_folder (str): folder to save the images. If None, will not save the images
-        epoch (int): current epoch number
-        num_images_preds (int): number of images to visualize
-        use_wandb (bool): whether to use wandb to log the images
-        display (bool): whether to display the images
-    """
-    visualize_path = None
-    if save_folder is not None:
-        if epoch < 0:
-            visualize_path = os.path.join(save_folder, "visualize")
-            print('visualize_path %s' % visualize_path)
-        else:
-            visualize_path = os.path.join(
-                save_folder, "visualize", eval_type, f"epoch{epoch}", "action_prediction"
-            )
-
-    if not os.path.exists(visualize_path):
-        os.makedirs(visualize_path)
-
-    assert (
-        len(np_batch_obs_depths)
-        == len(np_batch_goal_depth)
-        == len(np_batch_obs_images)
-        == len(np_batch_goal_image)
-        == len(batch_goals)
-    )
-
-    dataset_names = list(data_config.keys())
-    dataset_names.sort()
-
-    batch_size = np_batch_obs_images.shape[0] #batch_obs_depths.shape[0]
-    wandb_list = []
-    text_color = "black"
-
-    for i in range(min(batch_size, num_images_preds)):
-        viz_obs_depth  = numpy_to_depth(np_batch_obs_depths[i])
-        viz_goal_depth = numpy_to_depth(np_batch_goal_depth[i])
-        viz_obs_image = numpy_to_img(np_batch_obs_images[i])       # image resize back to (640, 480)
-        viz_goal_image = numpy_to_img(np_batch_goal_image[i])
-        dataset_name = dataset_names[int(dataset_indices[i])]
-        goal_pos = batch_goals[i]
-        collision_pred = batch_collision_pred[i]    # float logit  (0~1)
-        collision_label= batch_collision_label[i]   # bool
-        info = batch_data_info[i].split(' ')
-
-        ################################################################################
-        # TODO: We need to come up with a better approaches for normalization !!!
-        # if normalized:
-        #     pred_waypoint *= data_config[dataset_name]["metric_waypoint_spacing"]
-        #     label_waypoint *= data_config[dataset_name]["metric_waypoint_spacing"]
-        #     goal_pos *= data_config[dataset_name]["metric_waypoint_spacing"]
-
-        save_path = None
-        if visualize_path is not None:
-            save_path = os.path.join(visualize_path, f"{str(i).zfill(4)}.png")
-
-        compare_pred_to_label_coll(
-            info,
-            viz_obs_depth,
-            viz_goal_depth,
-            viz_obs_image,   # (640, 480)
-            viz_goal_image,  # (640, 480)
-            dataset_name,
-            goal_pos,
-            collision_pred,  # float
-            collision_label, # bool
-            save_path,
-            display,
-        )
-        if use_wandb:
-            wandb_list.append(wandb.Image(save_path))
-    if use_wandb:
-        wandb.log({f"{eval_type}_action_prediction": wandb_list}, commit=False)
-
+#
+# def visualize_coll_pred(
+#     batch_data_info: tuple,
+#     np_batch_obs_images: np.ndarray,           # img size : VISUALIZATION_IMAGE_SIZE = (160, 120)
+#     np_batch_goal_image: np.ndarray,           # img size : VISUALIZATION_IMAGE_SIZE = (160, 120)
+#     np_batch_obs_depths: np.ndarray,           # img size : VISUALIZATION_IMAGE_SIZE = (160, 120)
+#     np_batch_goal_depth: np.ndarray,           # img size : VISUALIZATION_IMAGE_SIZE = (160, 120)
+#     dataset_indices: np.ndarray,
+#     batch_goals: np.ndarray,                   # denormalized old sub_goal poses
+#     batch_collision_pred: np.ndarray,
+#     batch_collision_label:np.ndarray,
+#     eval_type: str,
+#     normalized: bool,
+#     save_folder: str,
+#     epoch: int,
+#     num_images_preds: int = 8,
+#     use_wandb: bool = True,
+#     display: bool = False,
+# ):
+#     """
+#     Compare predicted path with the gt path of waypoints using egocentric visualization. This visualization is for the last batch in the dataset.
+#
+#     Args:
+#         batch_obs_images (np.ndarray): batch of observation images [batch_size, height, width, channels]   (height, width) = (160, 120)
+#         batch_goal_images (np.ndarray): batch of goal images [batch_size, height, width, channels]
+#         dataset_names: indices corresponding to the dataset name
+#         batch_goals (np.ndarray): batch of goal positions [batch_size, 2]
+#         eval_type (string): f"{data_type}_{eval_type}" (e.g. "former_test")
+#         normalized (bool): whether the waypoints are normalized
+#         save_folder (str): folder to save the images. If None, will not save the images
+#         epoch (int): current epoch number
+#         num_images_preds (int): number of images to visualize
+#         use_wandb (bool): whether to use wandb to log the images
+#         display (bool): whether to display the images
+#     """
+#     visualize_path = None
+#     if save_folder is not None:
+#         if epoch < 0:
+#             visualize_path = os.path.join(save_folder, "visualize")
+#             print('visualize_path %s' % visualize_path)
+#         else:
+#             visualize_path = os.path.join(
+#                 save_folder, "visualize", eval_type, f"epoch{epoch}", "action_prediction"
+#             )
+#
+#     if not os.path.exists(visualize_path):
+#         os.makedirs(visualize_path)
+#
+#     assert (
+#         len(np_batch_obs_depths)
+#         == len(np_batch_goal_depth)
+#         == len(np_batch_obs_images)
+#         == len(np_batch_goal_image)
+#         == len(batch_goals)
+#     )
+#
+#     dataset_names = list(data_config.keys())
+#     dataset_names.sort()
+#
+#     batch_size = np_batch_obs_images.shape[0] #batch_obs_depths.shape[0]
+#     wandb_list = []
+#     text_color = "black"
+#
+#     for i in range(min(batch_size, num_images_preds)):
+#         viz_obs_depth  = numpy_to_depth(np_batch_obs_depths[i])
+#         viz_goal_depth = numpy_to_depth(np_batch_goal_depth[i])
+#         viz_obs_image = numpy_to_img(np_batch_obs_images[i])       # image resize back to (640, 480)
+#         viz_goal_image = numpy_to_img(np_batch_goal_image[i])
+#         dataset_name = dataset_names[int(dataset_indices[i])]
+#         goal_pos = batch_goals[i]
+#         collision_pred = batch_collision_pred[i]    # float logit  (0~1)
+#         collision_label= batch_collision_label[i]   # bool
+#         info = batch_data_info[i].split(' ')
+#
+#         ################################################################################
+#         # TODO: We need to come up with a better approaches for normalization !!!
+#         # if normalized:
+#         #     pred_waypoint *= data_config[dataset_name]["metric_waypoint_spacing"]
+#         #     label_waypoint *= data_config[dataset_name]["metric_waypoint_spacing"]
+#         #     goal_pos *= data_config[dataset_name]["metric_waypoint_spacing"]
+#
+#         save_path = None
+#         if visualize_path is not None:
+#             save_path = os.path.join(visualize_path, f"{str(i).zfill(4)}.png")
+#
+#         compare_pred_to_label_coll(
+#             info,
+#             viz_obs_depth,
+#             viz_goal_depth,
+#             viz_obs_image,   # (640, 480)
+#             viz_goal_image,  # (640, 480)
+#             dataset_name,
+#             goal_pos,
+#             collision_pred,  # float
+#             collision_label, # bool
+#             save_path,
+#             display,
+#         )
+#         if use_wandb:
+#             wandb_list.append(wandb.Image(save_path))
+#     if use_wandb:
+#         wandb.log({f"{eval_type}_action_prediction": wandb_list}, commit=False)
 
 
 def compare_pred_to_label_coll(
@@ -194,36 +188,15 @@ def compare_pred_to_label_coll(
     x_offset = bHc[0, 3] + X_VIZ_START_OFFSET # +0.6 projects uv at the bottom of the (isaac sim)imgs
     y_offset = bHc[1, 3]
 
-    start_pos = np.array([0, 0, 0.0, 0.0])
-    start_pos_w_offset = np.array([x_offset, y_offset, 0.0, 0.0])  # start cam pose
-
-    #load the corrected sg if exist one
     new_sg_file = Path("%s/new_subgoal_m.txt"%info[1])
-    points_list = []
-    points_list_w_offset = []
-    ws = nav_config['datasets'][dataset_name]['waypoint_spacing']
     if (new_sg_file.exists()):
         np_new_sg = np.loadtxt(new_sg_file)  #  corrected (SLAM) goal pose
-        #assert np_new_sg[0] == goal_pos[0], f"Is {np_new_sg} and {goal_pos} the same ? "
-        # [x_sg, y_sg, qw_sg, qz_sg] = np_new_sg
-        # if nav_config['normalize'] is True:
-        #     th_sg = 2 * np.arctan2(qz_sg, qw_sg) # [x y qw qz]
-        #     xyth_norm = _normalize_pose(np.asarray([x_sg, y_sg, th_sg]).transpose(),
-        #                              waypoint_spacing=ws, eta=1.0, dataset_name=dataset_name)
-        #
-        # np_new_sg = np.array([ xyth_norm[0], xyth_norm[1], qw_sg, qz_sg])
+
         corrected_goal_pos_w_offset = np_new_sg.copy()
         corrected_goal_pos_w_offset[0] += x_offset
         corrected_goal_pos_w_offset[1] += y_offset
-        points_list_w_offset = [start_pos_w_offset, corrected_goal_pos_w_offset]
-        points_list = [start_pos, np_new_sg]
-    else:
-        points_list_w_offset = [start_pos_w_offset]
-        points_list = [start_pos]
 
     text_color = "black"
-    dist_comp_txt = ""
-
 
     collision_prob = 1.0 / (1.0 + np.exp(-float(collision_logit)))
     assert 0.0 <= collision_prob <= 1.0, f"coll logit {collision_logit} and coll prob {collision_prob}"
@@ -249,23 +222,6 @@ def compare_pred_to_label_coll(
         bbox=props,
         color=text_color
     )
-
-    # if dataset_name == 'former' or dataset_name == 'isaac_sim':
-    #    plot_projected_trajs_and_points_on_image(
-    #         ax01, #ax[0][1],
-    #         viz_obs_img,    # (640, 480)
-    #         dataset_name,
-    #         np_pred_waypoint_w_offset,
-    #         np_label_waypoint_w_offset,
-    #         points_list_w_offset, #[start_pos_w_offset, goal_pos_w_offset, corrected_goal_pos_w_offset],
-    #         waypts_colors=[CYAN, MAGENTA],
-    #         point_colors=[GREEN, RED, BLUE],
-    #    )
-    # elif dataset_name == 'thud':
-    #     raise Exception("Not Implemented for 6d pose vec ")
-    #
-    # else:
-    #     raise Exception("Unknown dataset_name <%s>"%dataset_name)
 
     ax02.imshow(viz_goal_img)
     ax11.imshow(viz_obs_depth,  cmap='gray', vmin=0, vmax=255)
@@ -469,14 +425,7 @@ def compare_pred_to_label(
     ws = nav_config['datasets'][dataset_name]['waypoint_spacing']
     if (new_sg_file.exists()):
         np_new_sg = np.loadtxt(new_sg_file)  #  corrected (SLAM) goal pose
-        #assert np_new_sg[0] == goal_pos[0], f"Is {np_new_sg} and {goal_pos} the same ? "
-        # [x_sg, y_sg, qw_sg, qz_sg] = np_new_sg
-        # if nav_config['normalize'] is True:
-        #     th_sg = 2 * np.arctan2(qz_sg, qw_sg) # [x y qw qz]
-        #     xyth_norm = _normalize_pose(np.asarray([x_sg, y_sg, th_sg]).transpose(),
-        #                              waypoint_spacing=ws, eta=1.0, dataset_name=dataset_name)
-        #
-        # np_new_sg = np.array([ xyth_norm[0], xyth_norm[1], qw_sg, qz_sg])
+
         corrected_goal_pos_w_offset = np_new_sg.copy()
         corrected_goal_pos_w_offset[0] += x_offset
         corrected_goal_pos_w_offset[1] += y_offset
@@ -1148,52 +1097,6 @@ def project_points(
     uv = uv.reshape(batch_size, horizon, 2)
 
     return uv
-
-#
-# def get_pos_pixels(
-#     points: np.ndarray,
-#     camera_height: float,
-#     camera_x_offset: float,
-#     camera_matrix: np.ndarray,
-#     dist_coeffs: np.ndarray,
-#     clip: Optional[bool] = False,
-# ):
-#     """
-#     Projects 3D coordinates onto a 2D image plane using the provided camera parameters.
-#     Args:
-#         points: array of shape (batch_size, horizon, 2) representing (x, y) coordinates
-#         camera_height: height of the camera above the ground (in meters)
-#         camera_x_offset: offset of the camera from the center of the car (in meters)
-#         camera_matrix: 3x3 matrix representing the camera's intrinsic parameters
-#         dist_coeffs: vector of distortion coefficients
-#
-#     Returns:
-#         pixels: array of shape (batch_size, horizon, 2) representing (u, v) coordinates on the 2D image plane
-#     """
-#     pixels = project_points(
-#         points[np.newaxis], camera_height, camera_x_offset, camera_matrix, dist_coeffs
-#     )[0]
-#     pixels[:, 0] = VIZ_IMAGE_SIZE[0] - pixels[:, 0]
-#     if clip:
-#         pixels = np.array(
-#             [
-#                 [
-#                     np.clip(p[0], 0, VIZ_IMAGE_SIZE[0]),
-#                     np.clip(p[1], 0, VIZ_IMAGE_SIZE[1]),
-#                 ]
-#                 for p in pixels
-#             ]
-#         )
-#     else:
-#         pixels = np.array(
-#             [
-#                 p
-#                 for p in pixels
-#                 if np.all(p > 0) and np.all(p < [VIZ_IMAGE_SIZE[0], VIZ_IMAGE_SIZE[1]])
-#             ]
-#         )
-#     return pixels
-#
 
 def gen_camera_matrix(fx: float, fy: float, cx: float, cy: float) -> np.ndarray:
     """

@@ -14,9 +14,6 @@ from torchvision import transforms
 import torch.backends.cudnn as cudnn
 from warmup_scheduler import GradualWarmupScheduler
 
-from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
-from diffusers.optimization import get_scheduler
-
 """
 IMPORT YOUR MODEL HERE
 """
@@ -27,11 +24,10 @@ import sys
 sys.path.append(BASE_DIR)
 #print("base dir from train_isaac:", BASE_DIR)
 
-from models.image_rnn.image_pose_rnn import ImagePoseRNN
-from models.image_rnn.dev_gru import DevGRU
+from models.image_rnn.devgru_ap import DevGRU
 #from depth_nav_train.data.depth_nav_dataset import
-from data.collision_dataset import Collision_Dataset
-from depth_nav_train.train_eval_loop import (
+from data.devgru_dataset import DevGRU_Dataset
+from devgru_train.train_eval_loop import (
     train_eval_loop,
     load_model,
 )
@@ -105,9 +101,9 @@ def main(config):
     if "clip_goals" not in config:
         config["clip_goals"] = False
 
-    for dataset_name in config["collision_datasets"]:
-        data_config = config["collision_datasets"][dataset_name]
-
+    for dataset_name in config["datasets"]:
+        data_config = config["datasets"][dataset_name]
+        print(data_config)
         if "negative_mining" not in data_config:
             data_config["negative_mining"] = True
         if "goals_per_obs" not in data_config:
@@ -118,7 +114,7 @@ def main(config):
             data_config["waypoint_spacing"] = 1
         for data_split_type in ["train", "test"]:
             if data_split_type in data_config:
-                    dataset = Collision_Dataset(
+                    dataset = DevGRU_Dataset(
                         data_folder=data_config["data_folder"],
                         data_split_folder=data_config[data_split_type],
                         dataset_name=dataset_name,
@@ -169,34 +165,7 @@ def main(config):
             drop_last=False,
         )
 
-    # load model
-    # pretained_policy_path = '%s/deployment/model_weights/dep_gru_ws3.pth' % BASE_DIR
-    # model = torch.load(pretained_policy_path)
-
-    # Create the model
-    if config["model_type"] == "image_pose_rnn":
-        if config["goal_type"] == "rgb":
-            model = ImagePoseRNN(
-                context_size=config["context_size"],
-                len_traj_pred=config["len_traj_pred"],
-                learn_angle=config["learn_angle"],
-                obs_encoder=config["obs_encoder"],
-                obs_encoding_size=config["obs_encoding_size"],
-                odom_encoding_size=config["odom_encoding_size"],
-                num_ch=3,
-            )
-        else:
-            model = ImagePoseRNN(
-                context_size=config["context_size"],
-                len_traj_pred=config["len_traj_pred"],
-                learn_angle=config["learn_angle"],
-                obs_encoder=config["obs_encoder"],
-                obs_encoding_size=config["obs_encoding_size"],
-                odom_encoding_size=config["odom_encoding_size"],
-                num_ch=1,
-            )
-
-    elif config["model_type"] == "dev_gru":
+    if config["model_type"] == "devgru_ap":
         if config["goal_type"] == "rgb":
             model = DevGRU(
                 context_size=config["context_size"],
@@ -220,16 +189,17 @@ def main(config):
                 num_ch=1,
             )
     else:
-        raise ValueError(f"Model {config['model']} not supported")
+        raise ValueError(f"Model {config['model_type']} not supported")
 
     if config["clipping"]:
-        print("Clipping gradients to", config["max_norm"])
+        max_norm = 1.
+        print("Clipping gradients to", max_norm)
         for p in model.parameters():
             if not p.requires_grad:
                 continue
             p.register_hook(
                 lambda grad: torch.clamp(
-                    grad, -1 * config["max_norm"], config["max_norm"]
+                    grad, -1 * max_norm, max_norm
                 )
             )
 
@@ -254,19 +224,22 @@ def main(config):
             )
         elif config["scheduler"] == "cyclic":
             print("Using cyclic LR with cycle", config["cyclic_period"])
+            cyclic_period = 10
             scheduler = torch.optim.lr_scheduler.CyclicLR(
                 optimizer,
                 base_lr=lr / 10.,
                 max_lr=lr,
-                step_size_up=config["cyclic_period"] // 2,
+                step_size_up=cyclic_period // 2,
                 cycle_momentum=False,
             )
         elif config["scheduler"] == "plateau":
             print("Using ReduceLROnPlateau")
+            plateau_patience = 3
+            plateau_factor= 0.5
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 optimizer,
-                factor=config["plateau_factor"],
-                patience=config["plateau_patience"],
+                factor=plateau_factor,
+                patience=plateau_patience,
                 verbose=True,
             )
         else:
@@ -274,10 +247,11 @@ def main(config):
 
         if config["warmup"]:
             print("Using warmup scheduler")
+            warmup_epochs = 4
             scheduler = GradualWarmupScheduler(
                 optimizer,
                 multiplier=1,
-                total_epoch=config["warmup_epochs"],
+                total_epoch=warmup_epochs,
                 after_scheduler=scheduler,
             )
 
@@ -304,8 +278,10 @@ def main(config):
         if scheduler is not None and "scheduler" in latest_checkpoint:
             scheduler.load_state_dict(latest_checkpoint["scheduler"].state_dict())
 
+    print_log_freq = 100
+    image_log_freq = 1000
     print("START TRAINING")
-    if config["model_type"] == "image_nav" or config["model_type"] == "image_pose_rnn" or config["model_type"] == "dev_gru":
+    if config["model_type"] == "devgru_ap":
         train_eval_loop(
             goal_type=config["goal_type"],
             train_model=config["train"],
@@ -319,8 +295,8 @@ def main(config):
             device=device,
             project_folder=config["project_folder"],
             normalized=config["normalize"],
-            print_log_freq=config["print_log_freq"],
-            image_log_freq=config["image_log_freq"],
+            print_log_freq=print_log_freq,
+            image_log_freq=image_log_freq,
             num_images_log=config["num_images_log"],
             current_epoch=current_epoch,
             learn_angle=config["learn_angle"],
@@ -343,7 +319,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         "-c",
-        default="../config/depth_nav.yaml",
+        default="../config/devgru.yaml",
         type=str,
         help="Path to the config file in train_config folder",
     )
@@ -373,7 +349,7 @@ if __name__ == "__main__":
         wandb.init(
             project=config["project_name"],
             settings=wandb.Settings(start_method="fork"),
-            entity="hankm",#"gnmv2", # TODO: change this to your wandb entity
+            entity="hankm", # TODO: change this to your wandb entity
         )
         base_path = os.path.dirname(args.config)
         wandb.save(args.config, base_path=base_path, policy="now")  # save the config file

@@ -6,7 +6,6 @@ from typing import Any, Iterable, Tuple
 import torch
 from torchvision import transforms
 import torchvision.transforms.functional as TF
-import torch.nn.functional as F
 import io
 from typing import Union
 import yaml
@@ -224,121 +223,6 @@ def _interp_pose(xyth0, xyth_e, t):
     xp = x0 + (xe - x0) * t
     return [xp, yp, yaw_p]
 
-# def _normalize_waypoints(pose, waypoint_spacing: int, dataset_name = 'former'):
-#     if pose.shape[-1] != 4:
-#         raise AssertionError("pose last dim must be 4: [x, y, qw, qz]")
-#
-#     gamma = 1.2
-#     (T, ndim) = pose.shape
-#
-#     idx = np.arange(1, T + 1, dtype=pose.dtype).reshape(T, 1)   # (T,1)
-#     meters_per_wp = []
-#     if dataset_name == 'isaac_sim':
-#         isaac_config = data_config['isaac_sim']
-#         meters_per_wp = isaac_config['metric_frame_spacing'] * waypoint_spacing
-#         gamma = isaac_config['gamma']
-#     elif dataset_name == 'former':
-#         former_config = data_config['former']
-#         meters_per_wp = former_config['metric_frame_spacing'] * waypoint_spacing
-#         gamma = former_config['gamma']
-#
-#     dmax_xy = gamma * idx * meters_per_wp  # (T,1)
-#
-#     pose_norm = np.array(pose, copy=True)
-#     pose_norm[:, 0:2] = pose_norm[:, 0:2] / dmax_xy
-#     return pose_norm
-#
-# def _denormalize_waypoints(pose_norm: np.ndarray, waypoint_spacing: int, dataset_name = 'former'):
-#     out = np.array(pose_norm, copy=True)
-#     meters_per_wp = []
-#     gamma = 1.2
-#     if dataset_name == 'isaac_sim':
-#         isaac_config = data_config['isaac_sim']
-#         meters_per_wp = isaac_config['metric_frame_spacing'] * waypoint_spacing
-#         gamma = isaac_config['gamma']
-#     elif dataset_name == 'former':
-#         former_config = data_config['former']
-#         meters_per_wp = former_config['metric_frame_spacing'] * waypoint_spacing
-#         gamma = former_config['gamma']
-#
-#     (B, len_traj, dim) = pose_norm.shape
-#     assert dim == 4
-#     idx_ = np.arange(1, len_traj + 1, dtype=np.float32).reshape(1, len_traj, 1)
-#     idx = np.broadcast_to(idx_, (B, len_traj, 2))
-#
-#     dmax_xy = gamma * idx * meters_per_wp  # (T,1)
-#     if out.ndim == 1:      # (4,)
-#         out[0:2] = out[0:2] * float(dmax_xy)
-#     else:                  # (T,4) or (B,T,4)
-#         out[..., 0:2] = out[..., 0:2] * dmax_xy
-#     return out
-#
-#
-# def _normalize_context_poses(pose, waypoint_spacing: int, dataset_name = 'former'):
-#     """
-#     normalize context_poses
-#     Args:
-#         In pose, P0 corresponds to the farthest, P4 corresponds to the right before the curr pose
-#         That is, the order or pose is, P0-5, P0-4, P0-3, P0-2, P0-1
-#     Returns:
-#         torch.Tensor: normalized pose
-#     """
-#     if pose.shape[-1] != 4:
-#         raise AssertionError("pose last dim must be 4: [x, y, qw, qz]")
-#
-#     gamma = 1.2
-#     T = pose.shape[0]
-#     idx = np.arange(T, 0, -1, dtype=float).reshape(T, 1)
-#
-#     meters_per_wp = []
-#     if dataset_name == 'isaac_sim':
-#         isaac_config = data_config['isaac_sim']
-#         meters_per_wp = isaac_config['metric_frame_spacing'] * waypoint_spacing
-#         gamma = isaac_config['gamma']
-#     elif dataset_name == 'former':
-#         former_config = data_config['former']
-#         meters_per_wp = former_config['metric_frame_spacing'] * waypoint_spacing
-#         gamma = former_config['gamma']
-#
-#     dmax_xy = gamma * idx * meters_per_wp  # (T,1)
-#
-#     pose_norm = np.array(pose, copy=True)
-#     pose_norm[:, 0:2] = pose_norm[:, 0:2] / dmax_xy
-#     return pose_norm
-#
-# def _denormalize_context_poses(pose_norm: np.ndarray, waypoint_spacing: int, dataset_name = 'former'):
-#     """
-#     denormalize context_poses
-#     Args:
-#         In pose_norm, P0 corresponds to the farthest, P4 corresponds to the right before the curr pose
-#     Returns:
-#         torch.Tensor: denormalized pose
-#     """
-#
-#     out = np.array(pose_norm, copy=True)
-#     meters_per_wp = []
-#     gamma = 1.2
-#     if dataset_name == 'isaac_sim':
-#         isaac_config = data_config['isaac_sim']
-#         meters_per_wp = isaac_config['metric_frame_spacing'] * waypoint_spacing
-#         gamma = isaac_config['gamma']
-#     elif dataset_name == 'former':
-#         former_config = data_config['former']
-#         meters_per_wp = former_config['metric_frame_spacing'] * waypoint_spacing
-#         gamma = former_config['gamma']
-#
-#     (B, len_traj, dim) = pose_norm.shape
-#     idx_ = np.arange(len_traj, 0, -1, dtype=np.float32).reshape(1, len_traj, 1)
-#     idx = np.broadcast_to(idx_, (B, len_traj, 2))
-#
-#     dmax_xy = gamma * idx * meters_per_wp  # (T,1)
-#     if out.ndim == 1:      # (4,)
-#         out[0:2] = out[0:2] * float(dmax_xy)
-#     else:                  # (T,4) or (B,T,4)
-#         out[..., 0:2] = out[..., 0:2] * dmax_xy
-#     return out
-
-
 def _normalize_subgoal(sg_pose, max_frame_dist: int= 24, dataset_name = 'former'):
     # if sg_pose.shape[-1] != 4:
     #     raise AssertionError("subgoal last dim must be 4: [x, y, qw, qz]")
@@ -421,87 +305,20 @@ def _denormalize_pose( pose_norm, waypoint_spacing: int, dataset_name = 'isaac_s
         out[..., 0:2] *= float(dmax_xy)
     return out
 
-
-# def _get_rel_pose_se2(xyt0, xytp, xyte, data_name, bHc: np.array = np.eye(4) ):
-#
-#     x0, y0, th0 = xyt0
-#     xp, yp, th_p = xytp
-#     xe, ye, th_e = xyte
-#     cHb = np.linalg.inv(bHc)
-#     num_wpts = len(xp)
-#     rel_xp = np.zeros([num_wpts])
-#     rel_yp = np.zeros([num_wpts])
-#     rel_theta_p = np.zeros([num_wpts])
-#     if data_name == 'thud':
-#         raise NotImplementedError
-#
-#         wHc0_left = rm.xyzrpy_to_htm(np.array([x0, y0, 0, 0, 0, th0]))
-#         wHc0 = rm.Left2Right(wHc0_left)
-#         c0Hw = np.linalg.inv(wHc0)
-#         b0Hw = bHc * c0Hw
-#
-#         wHcp_left = rm.xyzrpy_to_htm(np.array([xp, yp, 0, 0, 0, th_p]))
-#         wHcp = rm.Left2Right(wHcp_left)
-#         wHbp = wHcp * cHb
-#
-#         wHce_left = rm.xyzrpy_to_htm(np.array([xe, ye, 0, 0, 0, th_e]))
-#         wHce = rm.Left2Right(wHce_left)
-#         wHbe = wHce * cHb
-#
-#         # prediction w.r.t b0
-#         b0Hbp = np.matmul(b0Hw, wHbp)  # relative pred pose htm
-#         xb_p, yb_p, zb_p, rol_p, pit_p, yaw_p = rm.htm_to_xyzrpy(b0Hbp)  #
-#
-#         rel_xp = xb_p
-#         rel_yp = yb_p  # base motion is on xy plane
-#         rel_theta_p = rm.normalizeAngle(yaw_p) # -pi ~ pi
-#         # TODO: need to check if using only qs qz is sufficient.
-#
-#         # goal_pos w.r.t b0
-#         b0Hbe = np.matmul(b0Hw, wHbe)  # relative goal pose htm
-#         xb_g, yb_g, zb_g, rol_g, pit_g, yaw_g = rm.htm_to_xyzrpy(b0Hbe)  #
-#         quat_g = rm.htm_to_quat(b0Hbe)
-#         assert (np.linalg.norm(quat_g) == 1), (f"goal quat norm is {np.linalg.norm(quat_g)} while it should be 1")
-#         rel_xg = xb_g
-#         rel_yg = yb_g  # base_link motion is on xy plane !!
-#         rel_theta_g = rm.normalizeAngle(yaw_g) # -pi ~ pi
-#
-#     elif data_name == 'isaac_sim' or data_name == 'former':
-#         wHb0 = rm.xyzrpy_to_htm(np.array([x0, y0, 0, 0, 0, th0]))
-#         b0Hw = np.linalg.inv(wHb0)
-#         wHbe = rm.xyzrpy_to_htm(np.array([xe, ye, 0, 0, 0, th_e]))
-#
-#         for idx in range(0, num_wpts):
-#             wHbp = rm.xyzrpy_to_htm(np.array([xp[idx], yp[idx], 0, 0, 0, th_p[idx]]))
-#             b0Hbp = np.matmul(b0Hw, wHbp)  # relative pred pose htm
-#             xb_p, yb_p, zb_p, rol_p, pit_p, yaw_p = rm.htm_to_xyzrpy(b0Hbp)  #
-#             rel_xp[idx] = xb_p
-#             rel_yp[idx] = yb_p
-#             # prediction w.r.t c0
-#             rel_theta_p[idx] = rm.normalizeAngle(yaw_p) # enforce -pi ~ pi
-#
-#         # goal_pos w.r.t b0
-#         b0Hbe = np.matmul(b0Hw, wHbe)  # relative goal pose htm
-#         xb_g, yb_g, zb_g, rol_g, pit_g, yaw_g = rm.htm_to_xyzrpy(b0Hbe)  #
-#         rel_xg = xb_g
-#         rel_yg = yb_g  # base_link motion is on xy plane !!
-#         rel_theta_g = rm.normalizeAngle(yaw_g) # -pi ~ pi
-#
-#     return rel_xp, rel_yp, rel_theta_p, rel_xg, rel_yg, rel_theta_g
-
-
 def _get_rel_pose_se2(xyt0: np.ndarray,
                       xytp: np.ndarray,  #  3 x N
                       data_name,
                       bHc: np.array = np.eye(4) ):
-##################################3
-#xyt0 : base (origin) coord
-# xytp : target coord
+    """
+    xyt0 : base (origin) coord
+    xytp : target coord
+    """
+
     if ( len(xytp.shape) == 1 ):
         xytp = xytp[..., None]  # (3, context-1) or (3, 1)
 
     x0, y0, th0 = xyt0
-    cHb = np.linalg.inv(bHc)
+    #cHb = np.linalg.inv(bHc)
 
     (_, num_pts) = xytp.shape
     rel_xp = np.zeros([num_pts])
@@ -769,34 +586,3 @@ def _get_rel_cam_poses(self, xyt0, xytp, xyte, data_name, rHc: np.array = np.eye
         rel_goal_qy = quat_g[2].copy()
 
     return rel_xp, rel_zp, rel_pred_qs, rel_pred_qy, rel_xg, rel_zg, rel_goal_qs, rel_goal_qy
-
-
-# wHc0_left = rm.xyzrpy_to_htm(np.array([x0, y0, 0, 0, 0, th0]))
-# wHc0 = rm.Left2Right(wHc0_left)
-# c0Hw = np.linalg.inv(wHc0)
-#
-# wHcp_left = rm.xyzrpy_to_htm(np.array([xp, yp, 0, 0, 0, th_p]))
-# wHcp = rm.Left2Right(wHcp_left)
-#
-# wHce_left = rm.xyzrpy_to_htm(np.array([xe, ye, 0, 0, 0, th_e]))
-# wHce = rm.Left2Right(wHce_left)
-#
-# # prediction w.r.t c0
-# c0Hcp = np.matmul(c0Hw, wHcp)  # relative pred pose htm
-# xc_p, yc_p, zc_p, rol_p, pit_p, yaw_p = rm.htm_to_xyzrpy(c0Hcp)  #
-# quat_p = rm.htm_to_quat(c0Hcp)
-# assert (np.linalg.norm(quat_p) == 1), (f"action quat norm is {np.linalg.norm(quat_p)} while it should be 1")
-# rel_xp = xc_p
-# rel_zp = zc_p  # cam motion is on xz plane
-# rel_pred_qs = quat_p[0].copy()  # qs
-# rel_pred_qy = quat_p[2].copy()  # qy yaw of robot corresponds to  the pitch motion of the cam
-#
-# # goal_pos w.r.t c0
-# c0Hce = np.matmul(c0Hw, wHce)  # relative goal pose htm
-# xc_g, yc_g, zc_g, rol_g, pit_g, yaw_g = rm.htm_to_xyzrpy(c0Hce)  #
-# quat_g = rm.htm_to_quat(c0Hce)
-# assert (np.linalg.norm(quat_g) == 1), (f"goal quat norm is {np.linalg.norm(quat_g)} while it should be 1")
-# rel_xg = xc_g
-# rel_zg = zc_g  # cam motion is on xz plane !!
-# rel_goal_qs = quat_g[0].copy()
-# rel_goal_qy = quat_g[2].copy()

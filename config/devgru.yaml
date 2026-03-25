@@ -1,33 +1,33 @@
-project_name: depth-nav-release
-run_name: depth-nav
+project_name: devgru-release
+run_name: devgru
 
 # training setup
 use_wandb: False # set to false if you don't want to log to wandb
 train: True
-batch_size: 256    # 32 for colldata,  256 for navdata
-epochs: 100 #75
+batch_size: 32 #256   # 32 for colldata,  256 for navdata
+epochs: 4 #100 #75
 gpu_ids: [0]
 num_workers: 12
 lr: 5e-4
 optimizer: adamw
 clipping: False
-max_norm: 1.
+#max_norm: 1.
 scheduler: "cosine"
 warmup: True 
-warmup_epochs: 4
-cyclic_period: 10
-plateau_patience: 3
-plateau_factor: 0.5
+#warmup_epochs: 4
+#cyclic_period: 10
+#plateau_patience: 3
+#plateau_factor: 0.5
 seed: 0
 
 # model params
-model_type: "dev_gru" #"depth_coll" # #"image_pose_rnn"
+model_type: "devgru_ap" # "devgru_cp"  #"depth_coll" # #"image_pose_rnn"
 obs_encoder: "efficientnet-b0" # by default, this is imagenet pretrained
 obs_encoding_size: 512
 odom_encoding_size: 64
-mha_num_attention_heads: 4
-mha_num_attention_layers: 4
-mha_ff_dim_factor: 4
+#mha_num_attention_heads: 4
+#mha_num_attention_layers: 4
+#mha_ff_dim_factor: 4
 late_fusion: False
 
 # normalization for the action space
@@ -63,15 +63,17 @@ use_time_weight: False #True
 
 #################################################################
 # The dataset used for train_former.py (negative collision only)
-datasets:
-  former: 
-    data_folder: /media/mydata/former_datasets/former_all
-    train: /media/data/mydata/viznav/data_splits/former_all/ws3/train 
-    test:  /media/data/mydata/viznav/data_splits/former_all/ws3/test  
-    end_slack: 3
-    goals_per_obs: 1
-    negative_mining: True
-    waypoint_spacing: 3 #1      # frame_to_frame spacing  
+
+#datasets:
+  #former: 
+    #data_folder: /media/mydata/former_datasets/former_all
+    #train: /media/data/mydata/viznav/data_splits/former_all/ws3/train 
+    #test:  /media/data/mydata/viznav/data_splits/former_all/ws3/test  
+    #end_slack: 3
+    #goals_per_obs: 1
+    #negative_mining: True
+    #waypoint_spacing: 3 #1      # frame_to_frame spacing  
+
     
   #isaac_sim: 
     #data_folder: /media/data/mydata/isaacsim_dataset/0512/data #/media/data/pubdata/viznav_dataset/former/data_splits/train
@@ -84,8 +86,8 @@ datasets:
 
 # logging stuff
 ## =0 turns off
-print_log_freq: 100 # in iterations
-image_log_freq: 1000 #0 # in iterations
+#print_log_freq: 100 # in iterations
+#image_log_freq: 1000 #0 # in iterations
 num_images_log: 24 #16 #8 #0 
 pairwise_test_freq: 0 # in epochs
 eval_fraction: 0.25
@@ -93,21 +95,46 @@ wandb_log_freq: 10 # in iterations
 eval_freq: 1 # in epochs
 
 #################################################################
-# The dataset used for train_colldata.py (positive + negative collision data)
-collision_datasets:
+# This config also used in split_data.py 
+#################################################################
+data_split:
+  split_ratio: 0.8  # (train 0.8, val 0.2)
   former:
-    data_folder: /media/data/mydata/former_datasets/colldata/col-10K_fixed/noncol_04K-col_10K 
-    train: /media/data/mydata/viznav/data_splits/former_collision/noncol_04K-col_10K/train
-    test:  /media/data/mydata/viznav/data_splits/former_collision/noncol_04K-col_10K/test
+    data_folder: /storage/data/mydata/former_ewha/mixed_2K 
+    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_2K/train
+    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_2K/test
     waypoint_spacing: 3
+    negative_mining: True
+#################################################################
+# The dataset used for train_action_predictor.py (coll + non-coll data)
+#################################################################
+datasets:
+  former: 
+    data_folder: /storage/data/mydata/former_ewha/mixed_2K 
+    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_2K/train
+    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_2K/test
+    end_slack: 3
+    goals_per_obs: 1
+    negative_mining: True
+    waypoint_spacing: 3 #1      # frame_to_frame spacing  
+
+    
+  #isaac_sim: 
+    #data_folder: /media/data/mydata/isaacsim_dataset/0512/data #/media/data/pubdata/viznav_dataset/former/data_splits/train
+    #train: /media/data/mydata/viznav/data_splits/isaacsim/0512/train 
+    #test:  /media/data/mydata/viznav/data_splits/isaacsim/0512/test  
+
+    #end_slack: 3
+    #goals_per_obs: 1
+    #negative_mining: True
 ##################################################################
 # used for deployment 
 ##################################################################
 deployment:
     dataset_name: former
     topomap_name: T0 #T32 #T1-1 # 
-    nav_model_type: dev_gru
-    col_model_type: depth_coll  # depth_sg_coll
+    nav_model_type: devgru_ap #dev_gru
+    col_model_type: devgru_cp #depth_coll  # depth_sg_coll
     use_coll_pred_model: True
     goal_type: depth
     waypoint_spacing: 3
