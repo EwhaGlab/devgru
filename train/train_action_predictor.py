@@ -334,9 +334,10 @@ if __name__ == "__main__":
         user_config = yaml.safe_load(f)
 
     config.update(user_config)
-    config["run_name"] += "_" + time.strftime("%Y_%m_%d_%H_%M_%S")
+    #run_name = 'action_pred'
+    run_name = "action_pred_" + time.strftime("%Y_%m_%d_%H_%M_%S")
     config["project_folder"] = os.path.join(
-        "logs", config["project_name"], config["run_name"]
+        "logs", config["project_name"], run_name #config["run_name"]
     )
     os.makedirs(
         config[
@@ -353,7 +354,7 @@ if __name__ == "__main__":
         )
         base_path = os.path.dirname(args.config)
         wandb.save(args.config, base_path=base_path, policy="now")  # save the config file
-        wandb.run.name = config["run_name"]
+        wandb.run.name = run_name
         # update the wandb args with the training configurations
         if wandb.run:
             wandb.config.update(config)

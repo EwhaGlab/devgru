@@ -21,21 +21,25 @@ import utils.rigid_motion as rm
 from data.data_utils import (
     img_path_to_data,
     calculate_sin_cos,
-    get_data_path,
+    get_colldata_path, # get_data_path,
     to_local_coords,
-    #_get_rel_cam_poses,
-    #_get_rel_robot_poses,
     _interp_pose,
-    _get_rel_pose_se2,
+    #_get_rel_pose_se2,
+    #_normalize_waypoints,
+    #_denormalize_waypoints,
+    #_normalize_context_poses,
+    #_denormalize_context_poses,
+    _normalize_subgoal,
+    _denormalize_subgoal,
     _normalize_pose,
-    _normalize_subgoal
+    _denormalize_pose,
 )
 import cv2
 MAX_DEPTH = 65535.0
 #MAX_TOGOAL_DIST = 2.412 # when max frame diff = 80
 #MAX_TOGOAL_DIST =  0.6085 # when max frame diff = 20
 from scipy.io import savemat
-class DepthNav_Dataset(Dataset):
+class Collision_Dataset(Dataset):
     def __init__(
         self,
         data_folder: str,
@@ -94,11 +98,11 @@ class DepthNav_Dataset(Dataset):
         self.min_frame_dist = min_frame_dist     #  self.distance_categories[0]
         self.max_frame_dist = max_frame_dist     #  self.distance_categories[-1]
         self.negative_mining = negative_mining
-        #if self.negative_mining:
-            #self.distance_categories.append(-1)
+
         self.goal_dist_type = goal_dist_type
         self.len_traj_pred = len_traj_pred
         self.learn_angle = learn_angle
+
         self.context_size = context_size
         assert context_type in {
             "temporal",
@@ -126,7 +130,7 @@ class DepthNav_Dataset(Dataset):
         self.data_config = all_data_config[self.dataset_name]
         self.trajectory_cache = {}
         self._load_index()          # sample_index = (traj_name, curr_time, max_goal_distance),  goals_index = (traj_name, 0~max_idx)
-        self._build_caches()        # build LMDB cache for depth images        
+        self._build_caches()        # build LMDB cache for depth images
         
         if self.learn_angle:
             self.num_action_params = 4  # x y qw qz
@@ -138,6 +142,8 @@ class DepthNav_Dataset(Dataset):
         #state["_image_cache"] = None
         state["_rgb_cache"] = None
         state["_depth_cache"] = None
+        state["_goal_rgb_cache"] = None
+        state["_goal_depth_cache"] = None
         return state
     
     def __setstate__(self, state):
@@ -156,16 +162,26 @@ class DepthNav_Dataset(Dataset):
             self.data_split_folder,
             f"depth_dataset_{self.dataset_name}.lmdb",
         )
+
+        goal_rgb_cache_filename = os.path.join(
+            self.data_split_folder,
+            f"goal_rgb_dataset_{self.dataset_name}.lmdb",
+        )
+        goal_depth_cache_filename = os.path.join(
+            self.data_split_folder,
+            f"goal_depth_dataset_{self.dataset_name}.lmdb",
+        )
+
         # Load all the trajectories into memory. These should already be loaded, but just in case.
         for traj_name in self.traj_names:   # saves trajs in dict name: self.trajectory_cache
             self._get_trajectory(traj_name)
 
-        """
-        If the cache file doesn't exist, create it by iterating through the dataset and writing each image to the cache
-        """
+    #     """
+    #     If the cache file doesn't exist, create it by iterating through the dataset and writing each image to the cache
+    #     """
         if not os.path.exists(rgb_cache_filename):
             tqdm_iterator = tqdm.tqdm(
-                self.goals_index,
+                self.index_to_data,           # ( traj_name,  time )
                 disable=not use_tqdm,
                 dynamic_ncols=True,
                 desc=f"Building RGB LMDB cache for {self.dataset_name}"
@@ -174,14 +190,29 @@ class DepthNav_Dataset(Dataset):
                 with rgb_cache.begin(write=True) as txn:
                     for traj_name, time in tqdm_iterator:
                         #rgb_path = get_data_path(self.data_folder, traj_name, int(time), 'rgb')
-                        rgb_path = get_data_path(traj_name, int(time), 'rgb')
+                        rgb_path = get_colldata_path(traj_name, int(time), 'rgb')
                         #print("image_path: %s"%rgb_path )
                         with open(rgb_path, "rb") as f:
                             txn.put(rgb_path.encode(), f.read())
 
+        if not os.path.exists(goal_rgb_cache_filename):
+            tqdm_iterator = tqdm.tqdm(
+                self.goals_index,           # ( traj_name,  time )
+                disable=not use_tqdm,
+                dynamic_ncols=True,
+                desc=f"Building RGB LMDB cache for {self.dataset_name}"
+            )
+            with lmdb.open(goal_rgb_cache_filename, map_size=2**40) as goal_rgb_cache:
+                with goal_rgb_cache.begin(write=True) as txn:
+                    for traj_name, time in tqdm_iterator:
+                        goal_rgb_path = get_colldata_path(traj_name, int(time), 'rgb')
+                        #print("image_path: %s"%rgb_path )
+                        with open(goal_rgb_path, "rb") as f:
+                            txn.put(goal_rgb_path.encode(), f.read())
+
         if not os.path.exists(depth_cache_filename):
             tqdm_iterator = tqdm.tqdm(
-                self.goals_index,
+                self.index_to_data,
                 disable=not use_tqdm,
                 dynamic_ncols=True,
                 desc=f"Building Depth LMDB cache for {self.dataset_name}"
@@ -190,19 +221,37 @@ class DepthNav_Dataset(Dataset):
                 with depth_cache.begin(write=True) as txn:
                     for traj_name, time in tqdm_iterator:
                         #depth_path = get_data_path(self.data_folder, traj_name, int(time), 'depth')
-                        depth_path = get_data_path(traj_name, int(time), 'depth')
+                        depth_path = get_colldata_path(traj_name, int(time), 'depth')
                         # print("image_path: %s"%image_path )
                         dm = cv2.imread(depth_path, -1)  # read as uint16
                         #dm = dm.astype('float32') / 65535.0 * 255.0  # rescale it to 0 ~ 255
                         #dm = np.round(dm).astype(np.uint8)        # convert to uint8
                         dm_bytes = cv2.imencode('.png', dm)[1].tobytes()
                         txn.put(depth_path.encode(), dm_bytes)
-                        # with open(depth_path, "rb") as f:
-                            #txn.put(depth_path.encode(), f.read())
+
+        if not os.path.exists(goal_depth_cache_filename):
+            tqdm_iterator = tqdm.tqdm(
+                self.goals_index,
+                disable=not use_tqdm,
+                dynamic_ncols=True,
+                desc=f"Building Depth LMDB cache for {self.dataset_name}"
+            )
+            with lmdb.open(goal_depth_cache_filename, map_size=2**40) as goal_depth_cache:
+                with goal_depth_cache.begin(write=True) as txn:
+                    for traj_name, time in tqdm_iterator:
+                        #depth_path = get_data_path(self.data_folder, traj_name, int(time), 'depth')
+                        goal_depth_path = get_colldata_path(traj_name, int(time), 'depth')
+                        dm = cv2.imread(goal_depth_path, -1)  # read as uint16
+                        #dm = dm.astype('float32') / 65535.0 * 255.0  # rescale it to 0 ~ 255
+                        #dm = np.round(dm).astype(np.uint8)        # convert to uint8
+                        dm_bytes = cv2.imencode('.png', dm)[1].tobytes()
+                        txn.put(goal_depth_path.encode(), dm_bytes)
 
         # Reopen the cache file in read-only mode
         self._rgb_cache: lmdb.Environment = lmdb.open(rgb_cache_filename, readonly=True)
         self._depth_cache: lmdb.Environment = lmdb.open(depth_cache_filename, readonly=True)
+        self._goal_rgb_cache: lmdb.Environment = lmdb.open(goal_rgb_cache_filename, readonly=True)
+        self._goal_depth_cache: lmdb.Environment = lmdb.open(goal_depth_cache_filename, readonly=True)
 
     def _build_index(self, use_tqdm: bool = False):
         """
@@ -215,32 +264,42 @@ class DepthNav_Dataset(Dataset):
             traj_data = self._get_trajectory(traj_name)
             traj_len = len(traj_data["position"])
 
-            for goal_time in range(0, traj_len):
-                goals_index.append((traj_name, goal_time))
+            goals_index.append((traj_name, -1))  # just add dummy number
+            context_indexs = np.loadtxt('%s/context_index.txt'%traj_name, dtype=int)
 
-            begin_time = self.context_size * self.waypoint_spacing
-            end_time = traj_len - self.end_slack - self.len_traj_pred * self.waypoint_spacing
-            for curr_time in range(begin_time, end_time):
-                max_goal_distance = min(self.max_frame_dist * self.waypoint_spacing, traj_len - curr_time - 1)
-                samples_index.append((traj_name, curr_time, max_goal_distance))
+            for index in context_indexs:
+                samples_index.append((traj_name, index))
+
+
+            # for goal_time in range(0, traj_len):
+            #     goals_index.append((traj_name, goal_time))
+            #
+            # begin_time = self.context_size * self.waypoint_spacing
+            # end_time = traj_len - self.end_slack - self.len_traj_pred * self.waypoint_spacing
+            # for curr_time in range(begin_time, end_time):
+            #     max_goal_distance = min(self.max_frame_dist * self.waypoint_spacing, traj_len - curr_time - 1)
+            #     samples_index.append((traj_name, curr_time, max_goal_distance))
 
         return samples_index, goals_index       # goals_index is needed for "sample_negative().  i.e.) neg random sampling"
+    #
+    #
 
-    def _sample_goal(self, trajectory_name, curr_time, max_frame_goal_dist):
-        """
-        Sample a goal from the future in the same trajectory.
-        Returns: (trajectory_name, goal_time, goal_is_negative)
-        """
-        # goal_offset = np.random.randint(0, max_goal_dist + 1)       # 1 out of 21 chooses a neg sample (0~20)
-        # max_goal_frame_dist = max_goal_dist(24) * waypoint_spacing
-        goal_offset = np.random.randint(1, max_frame_goal_dist + 1)  # 1 out of 19 chooses w/o neg sample (1 ~ max_goal_dist * waypoint_spacing)
-        if goal_offset == 0:
-            assert 0 # something went wrong...
-            trajectory_name, goal_time = self._sample_negative()    # select a different traj
-            return trajectory_name, goal_time, True
-        else:
-            goal_time = curr_time + goal_offset  #* self.waypoint_spacing
-            return trajectory_name, goal_time, False
+    # def _sample_goal(self, trajectory_name, curr_time, max_frame_goal_dist):
+    #     """
+    #     Sample a goal from the future in the same trajectory.
+    #     Returns: (trajectory_name, goal_time, goal_is_negative)
+    #     """
+    #     # goal_offset = np.random.randint(0, max_goal_dist + 1)       # 1 out of 21 chooses a neg sample (0~20)
+    #     # max_goal_frame_dist = max_goal_dist(24) * waypoint_spacing
+    #     goal_offset = np.random.randint(1, max_frame_goal_dist + 1)  # 1 out of 19 chooses w/o neg sample (1 ~ max_goal_dist * waypoint_spacing)
+    #     if goal_offset == 0:
+    #         assert 0 # something went wrong...
+    #         trajectory_name, goal_time = self._sample_negative()    # select a different traj
+    #         return trajectory_name, goal_time, True
+    #     else:
+    #         goal_time = curr_time + goal_offset  #* self.waypoint_spacing
+    #         return trajectory_name, goal_time, False
+    #
 
     def _sample_negative(self):
         """
@@ -255,7 +314,7 @@ class DepthNav_Dataset(Dataset):
         index_to_data_path = os.path.join(
             self.data_split_folder,
             f"dataset_context_{self.context_type}_n{self.context_size}_slack_{self.end_slack}.pkl",)
-        
+
         #index_to_data_path = os.path.join(
             #self.data_split_folder,
             #f"dataset_dist_{self.min_dist_cat}_to_{self.max_dist_cat}_context_{self.context_type}_n{self.context_size}_slack_{self.end_slack}.pkl",)
@@ -270,11 +329,10 @@ class DepthNav_Dataset(Dataset):
             with open(index_to_data_path, "wb") as f:
                 pickle.dump((self.index_to_data, self.goals_index), f)
 
+
+
     def _load_rgb(self, trajectory_name, time):
-        #rgb_path = get_data_path(self.data_folder, trajectory_name, time, 'rgb')
-        rgb_path = get_data_path(trajectory_name, time, 'rgb')
-        #print("rgb path: %s \n"%rgb_path )
-        #print("time : %d \n"%time)
+        rgb_path = get_colldata_path(trajectory_name, time, 'rgb')
         try:
             with self._rgb_cache.begin() as txn:
                 rgb_buffer = txn.get(rgb_path.encode())
@@ -285,65 +343,116 @@ class DepthNav_Dataset(Dataset):
             print(f"Failed to load rgb image {rgb_path} @ {time}")
 
     def _load_depth(self, trajectory_name, time):
-        #depth_path = get_data_path(self.data_folder, trajectory_name, time, 'depth')
-        depth_path = get_data_path(trajectory_name, time, 'depth')
-        #print("image_path: "%depth_path)
+        depth_path = get_colldata_path(trajectory_name, time, 'depth')
         try:
             with self._depth_cache.begin() as txn:
                 depth_buffer = txn.get(depth_path.encode())
                 depth_bytes = bytes(depth_buffer)
             depth_bytes = io.BytesIO(depth_bytes)
-            #Q = np.asarray( Image.open(depth_bytes) )
-            #print("min max %d %d"%(np.min(Q), np.max(Q)) )
             return img_path_to_data(depth_bytes, self.image_size)
         except TypeError:
             print(f"Failed to load depth image {depth_path}")
 
-    def _compute_context_actions(self, traj_data, curr_time,
-                              context_times):  # goal_time : temporal idx of sg in the given traj
+    # def _load_rgb(self, rgb_path):
+    #     try:
+    #         return img_path_to_data(rgb_path, self.image_size)
+    #     except TypeError:
+    #         print(f"Failed to load rgb image {rgb_path} ")
+    #
+    # def _load_depth(self, depth_path):
+    #     try:
+    #         return img_path_to_data(depth_path, self.image_size)
+    #     except TypeError:
+    #        print(f"Failed to load depth image {depth_path}")
+
+    def _load_goal_rgb(self, trajectory_name):
+        goal_rgb_path = get_colldata_path(trajectory_name, -1, 'rgb')
+        try:
+            with self._goal_rgb_cache.begin() as txn:
+                goal_rgb_buffer = txn.get(goal_rgb_path.encode())
+                goal_rgb_bytes = bytes(goal_rgb_buffer)
+            goal_rgb_bytes = io.BytesIO(goal_rgb_bytes)
+            #print(goal_rgb_bytes)
+            return img_path_to_data(goal_rgb_bytes, self.image_size)
+        except TypeError:
+            print(f"Failed to load goal rgb image {goal_rgb_path} ")
+
+    def _load_goal_depth(self, trajectory_name):
+        goal_depth_path = get_colldata_path(trajectory_name, -1, 'depth')
+        #print(goal_depth_path)
+        try:
+            with self._goal_depth_cache.begin() as txn:
+                goal_depth_buffer = txn.get(goal_depth_path.encode())
+                goal_depth_bytes = bytes(goal_depth_buffer)
+            goal_depth_bytes = io.BytesIO(goal_depth_bytes)
+            return img_path_to_data(goal_depth_bytes, self.image_size)
+        except TypeError:
+            print(f"Failed to load goal depth {goal_depth_path} ")
+
+
+    def _get_trajectory(self, trajectory_name):
+        if trajectory_name in self.trajectory_cache:
+            return self.trajectory_cache[trajectory_name]
+        else:
+            with open(os.path.join(self.data_folder, trajectory_name, "traj_data.pkl"), "rb") as f:
+                traj_data = pickle.load(f)
+            self.trajectory_cache[trajectory_name] = traj_data
+            return traj_data
+
+    def __len__(self) -> int:
+        return len(self.traj_names)
+        #return len(self.index_to_data)
+
+    def is_collision(self, old_goal_pose, new_goal_pose):
+        dx = new_goal_pose[0] - old_goal_pose[0]
+        dy = new_goal_pose[1] - old_goal_pose[1]
+        dist = math.hypot(dx, dy)
+        return  not math.isclose(dist, 0.0, abs_tol=1e-3)
+
+    def _load_context_actions(self, data_dir):  # goal_time : temporal idx of sg in the given traj
         #######################################################################################3
         # context_times: 0 ~ 5  if curr_time is 5
-        curr_idx = curr_time
-        context_idx = context_times
-        num_context = len(context_idx)
 
-        thetas = traj_data['orientation'][context_idx].squeeze()  # (N,)
-        positions = traj_data['position'][context_idx]  # (N,2)
+        traj_file = '%s/pose_context_m.txt' % data_dir
+        traj_data = np.loadtxt(traj_file)
 
-        xc, yc = traj_data['position'][curr_idx].squeeze()  # robot traj data
-        th_c = traj_data['orientation'][curr_idx][0]
+        quats = traj_data[:, 3:]  # (N,)
+        positions = traj_data[:, :2]
+        num_context = len(positions)
+        # xc, yc = positions[-1]
+
         xps = positions[:, 0]  # shape: (len_traj_pred,)
         yps = positions[:, 1]  # shape: (len_traj_pred,)
+        qw = quats[:, 0]
+        qz = quats[:, 3]
+        thetas = 2 * np.arctan2(qz, qw)
         th_ps = thetas  # shape: (len_traj_pred,)
 
-        if self.dataset_name == 'former':
-            bHc = rm.xyzrpy_to_htm(self.data_config['camera_matrics']['cam_wrt_base'])
-        else:
-            bHc = np.eye(4)
-
-        rel_xp, rel_yp, rel_theta_p = _get_rel_pose_se2(np.array([xc, yc, th_c]), np.array([xps, yps, th_ps]), self.dataset_name, bHc)
+        # rel_xp = xps
+        # rel_yp = yps
+        # rel_theta_p = th_ps
 
         # TODO: Explore better way to normalize actions !!! ###
         if self.normalize:
-            action = _normalize_pose(np.asarray([rel_xp, rel_yp, rel_theta_p]).transpose(),
+            action = _normalize_pose(np.asarray([xps, yps, qw, qz]).transpose(),
                                      waypoint_spacing=self.waypoint_spacing, dataset_name=self.dataset_name)
 
         else:
-            action = np.array([rel_xp, rel_yp, rel_theta_p], dtype='float32').transpose()
+            action = np.array([xps, yps, qw, qz], dtype='float32').transpose()
 
-        if self.learn_angle:
-            # conv angle to quat rep
-            out_action = np.zeros([num_context, 4], dtype='float32')
-            for ii in range(0, num_context):
-                q_a = rm.rpy2quat(0, 0, action[ii, 2])
-                assert round(math.sqrt(q_a[0] * q_a[0] + q_a[-1] * q_a[-1]), 3) == 1.0, f"Is q_a: {q_a} unit quat ? "
-                out_action[ii] = np.concatenate((action[ii, :2], np.array([q_a[0], q_a[-1]])), axis=0)
-        else:
-            out_action = action[..., :2]
+        # if self.learn_angle:
+        #     # conv angle to quat rep
+        #     out_action = np.zeros([num_context, 4], dtype='float32')
+        #     for ii in range(0, num_context):
+        #         q_a = rm.rpy2quat(0, 0, action[ii, 2])
+        #         assert round(math.sqrt(q_a[0] * q_a[0] + q_a[-1] * q_a[-1]), 3) == 1.0, f"Is q_a: {q_a} unit quat ? "
+        #         out_action[ii] = np.concatenate((action[ii, :2], np.array([q_a[0], q_a[-1]])), axis=0)
+        # else:
+        #     out_action = action[..., :2]
 
-        return out_action
+        return action #out_action
 
-    def _compute_next_actions(self, traj_data, curr_time, goal_time):  # goal_time : temporal idx of sg in the given traj
+    def _load_next_actions(self, data_dir):  # goal_time : temporal idx of sg in the given traj
         #######################################################################################3
         # traj_data must be base_link's motion data. i.e, curr base_link wrt origin (base_link)
 
@@ -360,78 +469,76 @@ class DepthNav_Dataset(Dataset):
         # (1) the transformed & normalized Pn1 ~ Pn5 are GT waypoints
         # (2) the transformed & normalized Pn5 corresponds to the GT goal_pos
         ###############################################################################################################
-        #num_pos = len(positions)  # curr pos ~ curr pos + 5
+        # num_pos = len(positions)  # curr pos ~ curr pos + 5
 
-        start_idx = curr_time
-        end_idx   = curr_time + self.len_traj_pred * self.waypoint_spacing + 1
+        # load old sg
+        old_sg_data_file = '%s/old_subgoal_m.txt' % data_dir
+        old_sg_data = np.loadtxt(old_sg_data_file)  # [xg_old, yg_old, qw_old, qz_old; xg_new, yg_new, qw_new, qz_new]
+        old_xg = old_sg_data[0].copy()
+        old_yg = old_sg_data[1].copy()
+        old_qw_g = old_sg_data[2].copy()
+        old_qz_g = old_sg_data[3].copy()
+        #old_th_g = 2 * np.arctan2(old_qz_g, old_qw_g)
 
-        thetas = traj_data['orientation'][start_idx:end_idx:self.waypoint_spacing].squeeze()  # (N,)
-        positions = traj_data['position'][start_idx:end_idx:self.waypoint_spacing]            # (N,2)
+        # load new sg
+        new_sg_data_file = '%s/new_subgoal_m.txt' % data_dir
+        new_sg_data = np.loadtxt(new_sg_data_file)  # [xg_old, yg_old, qw_old, qz_old; xg_new, yg_new, qw_new, qz_new]
+        new_xg = new_sg_data[0].copy()
+        new_yg = new_sg_data[1].copy()
+        new_qw_g = new_sg_data[2].copy()
+        new_qz_g = new_sg_data[3].copy()
+        #new_th_g = 2 * np.arctan2(new_qz_g, new_qw_g)
 
-        x0, y0 = positions[0]    # robot traj data
-        th0 = thetas[0]
-        # curr (xc,yc,th_c) -------- pred (xp,yp,th_p) -------- goal (xf, yf, th_f)
-        # pred xy and th are the cam pose at the middle of cam traj between the curr and the goal location
-        #assert (goal_idx - curr_time >= self.len_traj_pred), (f"goal_idx - curr_time {goal_idx - curr_time} should be GEQ to len_traj_pred")
-        xp = positions[1:, 0]   # shape: (len_traj_pred,)
-        yp = positions[1:, 1]   # shape: (len_traj_pred,)
-        th_p = thetas[1:]       # shape: (len_traj_pred,)
+        # load waypoint
+        traj_data_file = '%s/corrected_waypoints_m.txt' % (data_dir)
+        traj_data = np.loadtxt(traj_data_file)
 
-        goal_idx = min(goal_time, len(traj_data["position"]) - 1)
-        xe = traj_data['position'][goal_idx, 0]
-        ye = traj_data['position'][goal_idx, 1]
-        th_e= traj_data['orientation'][goal_idx][0]
+        xp = traj_data[:, 0].copy()
+        yp = traj_data[:, 1].copy()
+        qw = traj_data[:, 2].copy()
+        qz = traj_data[:, 3].copy()
 
-        if self.dataset_name == 'former':
-            bHc = rm.xyzrpy_to_htm( self.data_config['camera_matrics']['cam_wrt_base'] )
-        else:
-            bHc = np.eye(4)
-
-        rel_xp, rel_yp, rel_theta_p = _get_rel_pose_se2(np.array([x0, y0, th0]), np.array([xp, yp, th_p]), self.dataset_name, bHc)
-        rel_xg, rel_yg, rel_theta_g = _get_rel_pose_se2(np.array([x0, y0, th0]), np.array([xe, ye, th_e]), self.dataset_name, bHc)
-
-        #TODO: Explore better way to normalize actions !!! ###
+        # TODO: Explore better way to normalize actions !!! ###
         if self.normalize:
-            action = _normalize_pose(np.asarray([rel_xp, rel_yp, rel_theta_p]).transpose(), waypoint_spacing=self.waypoint_spacing, dataset_name=self.dataset_name)
-            goal = _normalize_subgoal(np.asarray([rel_xg, rel_yg, rel_theta_g]), max_frame_dist=self.max_frame_dist, dataset_name=self.dataset_name)
+            action = _normalize_pose(traj_data,
+                                     waypoint_spacing=self.waypoint_spacing, dataset_name=self.dataset_name)
+            old_goal = _normalize_subgoal(old_sg_data, max_frame_dist=self.max_frame_dist,
+                                     dataset_name=self.dataset_name)
+            new_goal = _normalize_subgoal(new_sg_data, max_frame_dist=self.max_frame_dist,
+                                     dataset_name=self.dataset_name)
 
         else:
-            action = np.array([rel_xp, rel_yp, rel_theta_p], dtype='float32').transpose()
-            goal = np.array([rel_xg, rel_yg, rel_theta_g], dtype='float32')
-
-        #assert( np.linalg.norm(action[2:]) == 1), (f"action quat norm {np.linalg.norm(action[2:])}  should be 1,  quat ws {quat_p}, and   rol pit orientation were: {rol_p}, {pit_p}, {orientation_p}")
+            action = traj_data.copy() #np.array([xp, yp, th_p], dtype='float32').transpose()
+            old_goal = old_sg_data.copy()  #np.array([old_xg, old_yg, old_th_g], dtype='float32')
+            new_goal = new_sg_data.copy()  #np.array([new_xg, new_yg, new_th_g], dtype='float32')
 
         if self.learn_angle:
             # conv angle to quat rep
-            out_action = np.zeros([self.len_traj_pred, 4], dtype='float32')
-            for ii in range(0, self.len_traj_pred):
-                q_a = rm.rpy2quat(0, 0, action[ii, 2])
-                assert round( math.sqrt( q_a[0]*q_a[0] + q_a[-1]*q_a[-1]), 3 )== 1.0, f"Is q_a: {q_a} unit quat ? "
-                out_action[ii] = np.concatenate( (action[ii, :2], np.array([q_a[0], q_a[-1]]) ), axis=0 )
-            q_g = rm.rpy2quat(0, 0, goal[2])
-            assert round( math.sqrt(q_g[0] * q_g[0] + q_g[-1] * q_g[-1]), 3 ) == 1.0, f"Is q_g: {q_g} unit quat ? "
-            out_relgoal = np.concatenate( (goal[:2], np.array([q_g[0], q_g[-1]]) ), axis= 0 )
+            # out_action = np.zeros([self.len_traj_pred, 4], dtype='float32')
+            # for ii in range(0, self.len_traj_pred):
+            #     q_a = rm.rpy2quat(0, 0, action[ii, 2])
+            #     assert round(math.sqrt(q_a[0] * q_a[0] + q_a[-1] * q_a[-1]),
+            #                  3) == 1.0, f"Is q_a: {q_a} unit quat ? "
+            #     out_action[ii] = np.concatenate((action[ii, :2], np.array([q_a[0], q_a[-1]])), axis=0)
+            # old_q_g = rm.rpy2quat(0, 0, old_goal[2])
+            # new_q_g = rm.rpy2quat(0, 0, new_goal[2])
+            # assert round(math.sqrt(old_q_g[0] * old_q_g[0] + old_q_g[-1] * old_q_g[-1]), 3) == 1.0, f"Is old q_g: {old_q_g} unit quat ? "
+            # assert round(math.sqrt(new_q_g[0] * new_q_g[0] + new_q_g[-1] * new_q_g[-1]), 3) == 1.0, f"Is new q_g: {new_q_g} unit quat ? "
+            # out_old_relgoal = np.concatenate((old_goal[:2], np.array([old_q_g[0], old_q_g[-1]])), axis=0)
+            # out_new_relgoal = np.concatenate((new_goal[:2], np.array([new_q_g[0], new_q_g[-1]])), axis=0)
+            out_action = action
+            out_old_relgoal = old_goal
+            out_new_relgoal = new_goal
         else:
-            out_action  = action [...,:2]
-            out_relgoal = goal[:2]
-#           raise NotImplementedError
+            out_action = action[..., :2]
+            out_old_relgoal = old_goal[:2]
+            out_new_relgoal = new_goal[:2]
+        #           raise NotImplementedError
 
         # assert actions.shape == (self.len_traj_pred,
         #                          self.num_action_params), f"{actions.shape} and {(self.len_traj_pred, self.num_action_params)} should be equal"
         # return actions, goal_pos
-        return out_action, out_relgoal
-
-    def _get_trajectory(self, trajectory_name):
-        if trajectory_name in self.trajectory_cache:
-            return self.trajectory_cache[trajectory_name]
-        else:
-            with open(os.path.join(self.data_folder, trajectory_name, "traj_data.pkl"), "rb") as f:
-                traj_data = pickle.load(f)
-            self.trajectory_cache[trajectory_name] = traj_data
-            return traj_data
-
-    def __len__(self) -> int:
-        return len(self.index_to_data)
+        return out_action, out_old_relgoal, out_new_relgoal
 
     def __getitem__(self, i: int) -> Tuple:
         """
@@ -445,115 +552,90 @@ class DepthNav_Dataset(Dataset):
                 action_label (torch.Tensor): tensor of shape (5, 2) or (5, 4) (if training with angle) containing the action labels from the observation to the goal
                 which_dataset (torch.Tensor): index of the datapoint in the dataset [for identifying the dataset for visualization when using multiple datasets]
         """
-        f_curr, curr_time, max_frame_goal_dist = self.index_to_data[i] # ( obs_path, sidx, max_frame_goal_dist (max_goal_dist * waypoint_spacing) )
-        f_goal, goal_time, goal_is_negative = self._sample_goal(f_curr, curr_time, max_frame_goal_dist) # returns random goal  # ( , traj_len * waypoint_spacing, False)
+        #f_curr, curr_time, max_frame_goal_dist = self.index_to_data[i] # ( obs_path, sidx, max_frame_goal_dist (max_goal_dist * waypoint_spacing) )
+        #f_goal, goal_time, goal_is_negative = self._sample_goal(f_curr, curr_time, max_frame_goal_dist) # returns random goal  # ( , traj_len * waypoint_spacing, False)
+
+        f_curr = self.traj_names[i]
+        context_time = np.loadtxt('%s/context_index.txt' % f_curr, dtype=int)
+        curr_time = context_time[-1]
+
+        f_goal = f_curr
+        goal_is_negative = False
 
         # f_goal : traj name, goal_time : temporal idx of future sg, goal_is_negative: True or False
         # Load images
         context = []
         # TODO: eliminate self.context_type parameter in the future
-        if self.context_type == "temporal":
-            # sample the last self.context_size times from interval [0, curr_time)
-            context_times = list(
-                range(
-                    curr_time + -self.context_size * self.waypoint_spacing,
-                    curr_time + 1,
-                    self.waypoint_spacing,
-                )
-            )
-            context = [(f_curr, t) for t in context_times]
-        else:
-            raise ValueError(f"Invalid context type {self.context_type}")
+
+        context = [(f_curr, t) for t in context_time]
+        goal_time = -1
 
         obs_rgbs = torch.cat([self._load_rgb(f, t) for f, t in context])        # hkm
         obs_depths = torch.cat([self._load_depth(f, t) for f, t in context])    # hkm
         # print("obs minmax: %f %f"%(torch.min(obs_depths), torch.max(obs_depths)) )
         # Load goal image
-        goal_rgb = self._load_rgb(f_goal, goal_time)  # hkm
-        goal_depth = self._load_depth(f_goal, goal_time)  # hkm
+        goal_rgb = self._load_goal_rgb(f_goal)  # hkm
+        goal_depth = self._load_goal_depth(f_goal)  # hkm
 
         # Load other trajectory data
-        curr_traj_data = self._get_trajectory(f_curr)
-        curr_traj_len = len(curr_traj_data["position"])
-        #print("f curr %s time %d  curr_traj len: %d\n"%(f_curr, curr_time, curr_traj_len) )
-        assert curr_time < curr_traj_len, f"{curr_time} and {curr_traj_len}"
-
-        #print("goal %s  time %d \n"%(f_goal, goal_time) )
-        goal_traj_data = self._get_trajectory(f_goal)
-        goal_traj_len = len(goal_traj_data["position"])
-        assert goal_time < goal_traj_len, f"{goal_time} an {goal_traj_len} curr_time: {curr_time}, curr_traj_len: {curr_traj_len} " \
-                                          f"\n f_curr: {f_curr} and f_goal: {f_goal}"
+        #curr_traj_data = self._get_trajectory(f_curr)
+        #curr_traj_len = len(curr_traj_data["position"])
 
         # Compute actions
         # actions and goal_pos are computed w.r.t the 1st image frame. (goal_time-curr_time : 1 ~ max_frame_dist * waypoint_spacing )
-        actions, goal_pos = self._compute_next_actions(curr_traj_data, curr_time, goal_time) # actions.shape:  num_len_traj x (2 or 3)
-        context_actions = self._compute_context_actions(curr_traj_data, curr_time,  context_times) # context actions : previous actions
+        actions_n, old_goalpos_n, new_goalpos_n = self._load_next_actions(f_curr) # actions: (x,y) or (x,y,theta), normalized
+        context_actions_n = self._load_context_actions(f_curr) # context actions : previous actions
+        collision_flag = self.is_collision(old_goalpos_n, new_goalpos_n)
 
         # Compute distances (temporal or spatial)
-        pose_diff = []
         if self.goal_dist_type == "temporal":
-            if goal_is_negative:
-                distance = self.max_frame_dist
-            else:
-                distance = (goal_time - curr_time) // self.waypoint_spacing
-                assert (goal_time - curr_time) % self.waypoint_spacing == 0, f"{goal_time} and {curr_time} should be separated by an integer multiple of {self.waypoint_spacing}"
+            raise NotImplementedError
+            # if goal_is_negative:
+            #     distance = self.max_frame_dist
+            # else:
+            #     distance = (goal_time - curr_time) // self.waypoint_spacing
+            #     assert (goal_time - curr_time) % self.waypoint_spacing == 0, f"{goal_time} and {curr_time} should be separated by an integer multiple of {self.waypoint_spacing}"
         elif self.goal_dist_type == "spatial":
             if goal_is_negative:
                 raise NotImplementedError
             else:
-                dx = goal_pos[0]
-                dy = goal_pos[1]
+                dx = new_goalpos_n[0]
+                dy = new_goalpos_n[1]
 
             if self.learn_angle:
                 if goal_is_negative:
                     raise NotImplementedError
                 else:
-                    qw = goal_pos[2]
-                    qz = goal_pos[3]
-                pose_diff = goal_pos    #np.array([dx, dy, qw, qz]) #angle_diff_rad])
+                    qw = new_goalpos_n[2]
+                    qz = new_goalpos_n[3]
+                pose_diff = new_goalpos_n    #np.array([dx, dy, qw, qz]) #angle_diff_rad])
             else:
-                pose_diff = goal_pos[:2]
-            # if goal_is_negative:
-            #     xy_distance = self.max_frame_dist * self.data_config["metric_frame_spacing"]   #
-            # else:
-            #     xy_distance = ( goal_pos[0]**2 + goal_pos[1]**2 ) ** 0.5  # relative distance
-            #     xy_distance = xy_distance * ( self.data_config["metric_frame_spacing"] * self.waypoint_spacing )   # normalized relative distance
-            #
-            # if self.learn_angle:
-            #     if goal_is_negative:
-            #         q_dist = 1
-            #     else:
-            #         q_curr = rm.rpy2quat(0, 0, 0)
-            #         q_goal = np.array([ goal_pos[2], 0, 0, goal_pos[-1] ], dtype='float32')
-            #         q_dist, angle_diff_rad = rm.quat_ang_dist( q_curr, q_goal )
-            #     distance = np.array([xy_distance, q_dist]) #angle_diff_rad])
-            # else:
-            #     distance = xy_distance
+                pose_diff = new_goalpos_n[:2]
         else:
             print("Unknown goal_dist_type \n")
             raise NotImplementedError
 
-        actions_torch = torch.as_tensor(actions, dtype=torch.float32)
-        context_actions_torch = torch.as_tensor(context_actions, dtype=torch.float32)
-        goal_torch = torch.as_tensor(goal_pos, dtype=torch.float32)
+        actions_torch = torch.as_tensor(actions_n, dtype=torch.float32)
+        context_actions_torch = torch.as_tensor(context_actions_n, dtype=torch.float32)
+        goal_torch = torch.as_tensor(old_goalpos_n, dtype=torch.float32)
         action_mask = (1) # checks if the computed distance to subgoal is bounded btwn the action (temporal waypoint) bound
 
         obs_rgb_norm    = obs_rgbs   # normalized when load_rgb is called
         goal_rgb_norm   = goal_rgb   
         obs_depths_norm = obs_depths
         goal_depth_norm = goal_depth
-        data_info = f'{self.dataset_name} {f_curr} {curr_time} {f_goal} {goal_time} {goal_time - curr_time}'
+        data_info = f'{self.dataset_name} {f_curr} {curr_time} {f_goal} {-1} {-1}'#{goal_time} {goal_time - curr_time}'
         return (
             torch.as_tensor(obs_rgb_norm, dtype=torch.float32),
             torch.as_tensor(obs_depths_norm, dtype=torch.float32),
             torch.as_tensor(goal_rgb_norm, dtype=torch.float32),
             torch.as_tensor(goal_depth_norm, dtype=torch.float32),
-            actions_torch,
-            context_actions_torch,
-            goal_torch,         # wrt base_link
-            torch.as_tensor(pose_diff, dtype=torch.float32), # sg:  normalized geometric pose diff wrt base_link (on xy plane)
+            actions_torch,          # normalized action
+            context_actions_torch,  # normalized action
+            goal_torch,   #  old sg : error accumulated sg pose (wrt base_link)
+            torch.as_tensor(pose_diff, dtype=torch.float32),  # new sg:  normalized geometric pose diff (to the new sg) wrt base_link (on xy plane)
             torch.as_tensor(self.dataset_index, dtype=torch.int64),
             torch.as_tensor(action_mask, dtype=torch.float32),
-            torch.as_tensor(False, dtype=torch.bool),  # train for ordinary data
+            torch.as_tensor(collision_flag, dtype=torch.bool),
             data_info
         )

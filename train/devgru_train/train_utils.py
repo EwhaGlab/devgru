@@ -87,7 +87,7 @@ def _compute_coll_loss(
     coll_label: torch.Tensor = None,
 ):
     """
-    Compute losses for distance and action prediction.
+    Compute losses for collision prediction.
     """
 
     collision_acc = torch.tensor(0.0,  device=coll_logit.device)
@@ -706,3 +706,361 @@ def evaluate(
     return dist_loss_logger.average(), action_loss_logger.average(), total_loss_logger.average()
 
 
+
+def train_coll(
+    goal_type: str,
+    model: nn.Module,
+    optimizer: Adam,
+    dataloader: DataLoader,
+    transform: transforms,
+    device: torch.device,
+    project_folder: str,
+    normalized: bool,
+    epoch: int,
+    alpha: float = 0.9,
+    beta:  float = 0.5,
+    learn_angle: bool = False,
+    print_log_freq: int = 100,
+    wandb_log_freq: int = 10,
+    image_log_freq: int = 1000,
+    num_images_log: int = 8,
+    use_wandb: bool = True,
+    use_tqdm: bool = True,
+):
+    """
+    Train the model for one epoch.
+
+    Args:
+        model: model to train
+        optimizer: optimizer to use
+        dataloader: dataloader for training
+        transform: transform to use
+        device: device to use
+        project_folder: folder to save images to
+        epoch: current epoch
+        alpha: weight of action loss
+        learn_angle: whether to learn the angle of the action
+        print_log_freq: how often to print loss
+        image_log_freq: how often to log images
+        num_images_log: number of images to log
+        use_wandb: whether to use wandb
+        use_tqdm: whether to use tqdm
+    """
+    model.train()   # this line sets the model to train mode
+    dist_loss_logger = Logger("dist_loss", "train", window_size=print_log_freq)
+    action_loss_logger = Logger("action_loss", "train", window_size=print_log_freq)
+    collision_loss_logger = Logger("collision_loss", "train", window_size=print_log_freq)
+    action_waypts_cos_sim_logger = Logger(
+        "action_waypts_cos_sim", "train", window_size=print_log_freq
+    )
+    # multi_action_waypts_cos_sim_logger = Logger(
+    #     "multi_action_waypts_cos_sim", "train", window_size=print_log_freq
+    # )
+    action_orient_quat_sim_logger = Logger(
+        "action_orient_quat_sim", "train", window_size=print_log_freq
+    )
+    total_loss_logger = Logger("total_loss", "train", window_size=print_log_freq)
+    loggers = {
+        'collision_loss': collision_loss_logger,
+        "total_loss": total_loss_logger,
+    }
+
+    num_batches = len(dataloader)
+    tqdm_iter = tqdm.tqdm(
+        dataloader,
+        disable=not use_tqdm,
+        dynamic_ncols=True,
+        desc=f"Training epoch {epoch}",
+    )
+    for i, data in enumerate(tqdm_iter):        # actual training loop
+        (
+            ts_obs_images,     # obs_image,
+            ts_obs_depths,
+            ts_goal_image,     # goal_image,
+            ts_goal_depth,
+            ts_action_label,   # wrt curr cam
+            ts_context_action,
+            ts_goal_pose,
+            ts_pose_diff_label,
+            ts_dataset_index,
+            ts_action_mask,
+            ts_collision_label,  # true (bool) if collision
+            str_data_info,
+        ) = data
+        # for str in str_data_info:
+        #     print('%s'%str)
+        # print("\n")
+# obs_image
+        # TODO: check if dim=0 is correct for torch.split() and torch.cat() below
+        assert(ts_obs_images.max() <= 1)
+        # obs_images.shape  is [B, Contxt*C, H, W],  ex) [256, 18, 64, 85]
+        tuple_ts_obs_images = torch.split(ts_obs_images, 3, dim=1)  # tuple  of  obs image imgs (B, CxC, H, W)
+        ts_curr_obs_image_vz = TF.resize(tuple_ts_obs_images[-1], VISUALIZATION_IMAGE_SIZE) # current obs img (160, 120)
+
+        ls_ts_obs_images = [transform(ts_obs_image).to(device) for ts_obs_image in tuple_ts_obs_images]
+        ts_obs_images = torch.cat(ls_ts_obs_images, dim=1)
+
+# obs_depth
+        assert(ts_obs_depths.max() <= 1)
+        # obs_depths.shape is [B, Contxt, H, W],   ex) [256, 6, 64, 85]
+        tuple_ts_obs_depths = torch.split(ts_obs_depths, 1, dim=1)
+        ts_curr_obs_depth_vz = TF.resize(tuple_ts_obs_depths[-1], VISUALIZATION_IMAGE_SIZE) # the last element of the tuple
+        ls_ts_obs_depths = torch.cat(tuple_ts_obs_depths, dim=1)
+        #ts_obs_depths = ls_ts_obs_depths.to(device)
+        ts_obs_depths = ls_ts_obs_depths.to(device)
+        ts_obs_depth_curr = ts_obs_depths[:, -1:, :, :]  # taking [256, 1, 85, 64]  from [256, 6, 85, 64]
+# goal_image
+        assert(ts_goal_image.max() <= 1)
+        ts_goal_image_vz = TF.resize(ts_goal_image, VISUALIZATION_IMAGE_SIZE)
+        ts_goal_image = transform(ts_goal_image).to(device) # transform() does img normalization (data preprocessing)
+
+# goal_depth
+        assert(ts_goal_depth.max() <= 1)
+        ts_goal_depth_vz = TF.resize(ts_goal_depth, VISUALIZATION_IMAGE_SIZE)
+        ts_goal_depth = ts_goal_depth.to(device)
+
+        ts_context_action = ts_context_action.to(device)
+        ts_goal_pose = ts_goal_pose.to(device)
+
+        #######################################################################################################
+        # model step FF
+        model_type = "devgru_cp"
+        if model_type== 'devgru_cp': #or config['model_type'] == 'depth_sg_coll':
+            coll_logit = model(ts_obs_depth_curr)
+        elif model_type == 'depth_sg_coll':
+                coll_logit = model(ts_obs_depth_curr, ts_goal_depth)
+        else:
+            print("unknown NN model")
+            raise NotImplementedError
+
+        ts_action_mask = ts_action_mask.to(device)
+        ts_collision_label = ts_collision_label.to(device)
+
+        optimizer.zero_grad()               # re-init the gradient buffers b/c we don't want any grad from previous epoch
+#        ts_action_pred, ts_pose_diff_pred, ts_collision_pred = model_outputs      # [B, len_traj_pred, num_params]
+        ts_collision_pred = coll_logit
+
+        losses = _compute_coll_loss(
+            coll_logit=         ts_collision_pred,
+            coll_label=         ts_collision_label,
+        )
+
+        losses["total_loss"].backward()     # back-propagation
+        optimizer.step()                    # update model parameter (weights)  ==> model learns
+
+        for key, value in losses.items():
+            if key in loggers:
+                logger = loggers[key]
+                logger.log_data(value.item())
+
+        # _log_data(
+        #     data_info=str_data_info,
+        #     i=i,
+        #     epoch=epoch,
+        #     num_batches=num_batches,
+        #     normalized=normalized,
+        #     project_folder=project_folder,
+        #     num_images_log=num_images_log,
+        #     loggers=loggers,
+        #     ts_obs_images_vz=ts_curr_obs_image_vz,     # (B, 3, H, W)
+        #     ts_obs_depths_vz= ts_curr_obs_depth_vz,     # (B, 1, H, W)
+        #     ts_goal_image_vz= ts_goal_image_vz,
+        #     ts_goal_depth_vz= ts_goal_depth_vz,
+        #     ts_action_pred  = ts_action_label, #ts_action_pred,
+        #     ts_action_label = ts_action_label,
+        #     ts_pose_diff_pred = ts_pose_diff_label, #ts_pose_diff_pred,
+        #     ts_pose_diff_label= ts_pose_diff_label,
+        #     ts_goal_pos  = ts_goal_pose,
+        #     ts_collision_pred = ts_collision_pred,
+        #     ts_collision_label= ts_collision_label,
+        #     dataset_index = ts_dataset_index,
+        #     wandb_log_freq= wandb_log_freq,
+        #     print_log_freq= print_log_freq,
+        #     image_log_freq= image_log_freq,
+        #     use_wandb=use_wandb,
+        #     mode="train",
+        #     use_latest=True,
+        # )
+
+def evaluate_coll(
+    eval_type: str,
+    goal_type: str,
+    model: nn.Module,
+    dataloader: DataLoader,
+    transform: transforms,
+    device: torch.device,
+    project_folder: str,
+    normalized: bool,
+    epoch: int = 0,
+    alpha: float = 0.9,
+    beta:  float = 0.5,
+    learn_angle: bool = True,
+    num_images_log: int = 8,
+    use_wandb: bool = True,
+    eval_fraction: float = 1.0,
+    use_tqdm: bool = True,
+
+):
+    """
+    Evaluate the model on the given evaluation dataset.
+
+    Args:
+        eval_type (string): f"{data_type}_{eval_type}" (e.g. "recon_train", "gs_test", etc.)
+        model (nn.Module): model to evaluate
+        dataloader (DataLoader): dataloader for eval
+        transform (transforms): transform to apply to images
+        device (torch.device): device to use for evaluation
+        project_folder (string): path to project folder
+        epoch (int): current epoch
+        alpha (float): weight for action loss
+        learn_angle (bool): whether to learn the angle of the action
+        num_images_log (int): number of images to log
+        use_wandb (bool): whether to use wandb for logging
+        eval_fraction (float): fraction of data to use for evaluation
+        use_tqdm (bool): whether to use tqdm for logging
+    """
+    model.eval()
+    collision_loss_logger = Logger("collision_loss", eval_type)
+    total_loss_logger = Logger("total_loss", eval_type)
+    loggers = {
+        'collision_loss': collision_loss_logger,
+        "total_loss": total_loss_logger,
+    }
+
+    num_batches = len(dataloader)
+    num_batches = max(int(num_batches * eval_fraction), 1)
+
+    #viz_obs_image = None
+    with torch.no_grad():
+        tqdm_iter = tqdm.tqdm(
+            itertools.islice(dataloader, num_batches),
+            total=num_batches,
+            disable=not use_tqdm,
+            dynamic_ncols=True,
+            desc=f"Evaluating {eval_type} for epoch {epoch}",
+        )
+        for i, data in enumerate(tqdm_iter):
+            (
+                ts_obs_images,
+                ts_obs_depths,
+                ts_goal_image,
+                ts_goal_depth,
+                ts_action_label,
+                ts_context_action,
+                ts_goal_pose,
+                ts_pose_diff_label,
+                ts_dataset_index,
+                ts_action_mask,
+                ts_collision_label,  # true (bool) if collision
+                str_data_info,
+            ) = data
+            # for str in str_data_info:
+            #     print('%s' % str)
+            # print("\n")
+
+            # obs_image
+        # TODO: check if dim=0 is correct for torch.split() and torch.cat() below
+            assert (ts_obs_images.max() <= 1)
+            assert (ts_goal_image.shape[1] == 3), f" rgb img shape is {ts_goal_image.shape}"
+        # ts_obs_images.shape  is [B, Contxt*C, H, W],  ex) [256, 18, 64, 85]
+            tuple_ts_obs_images = torch.split(ts_obs_images, 3, dim=1)  # tuple  of  obs image imgs (B, CxC, H, W)
+            ts_curr_obs_image_vz   = TF.resize(tuple_ts_obs_images[-1], VISUALIZATION_IMAGE_SIZE)  # current obs img (160, 120)
+            ls_ts_obs_images = [transform(ts_obs_image).to(device) for ts_obs_image in tuple_ts_obs_images]
+            ts_obs_images = torch.cat(ls_ts_obs_images, dim=1)
+
+        # obs_depth
+            tuple_obs_depths = torch.split(ts_obs_depths, 1, dim=1)  # convert tensor to tuple
+            ts_curr_obs_depth_vz = TF.resize(tuple_obs_depths[-1], VISUALIZATION_IMAGE_SIZE) # current obs
+            ts_obs_depths = ts_obs_depths.to(device)
+            ts_obs_depth_curr = ts_obs_depths[:, -1:, :, :]
+
+        # goal_image
+            assert (ts_goal_image.max() <= 1)
+            ts_goal_image_vz = TF.resize(ts_goal_image, VISUALIZATION_IMAGE_SIZE)
+            ts_goal_image = transform(ts_goal_image).to(device)  # transform() does img normalization (data preprocessing)
+
+        # goal_depth
+            ts_goal_depth_vz = TF.resize(ts_goal_depth, VISUALIZATION_IMAGE_SIZE)
+            ts_goal_depth = ts_goal_depth.to(device)
+        # model step
+
+            ts_context_action = ts_context_action.to(device)
+            ts_goal_pose = ts_goal_pose.to(device)
+
+            #######################################################################################################
+            # model step FF
+            # if config['model_type'] == 'devgru_cp': # or config['model_type'] == 'depth_sg_coll':
+            #     if goal_type == "rgb":
+            #         coll_logit = model(ts_obs_images, ts_goal_image)
+            #     elif goal_type == "depth":
+            #         coll_logit = model(ts_obs_depth_curr, ts_goal_depth)
+            #     else:
+            #         print("goal type %s is not supported" % goal_type)
+            #         raise NotImplementedError
+            model_type = "devgru_cp"
+            if model_type == 'devgru_cp':  # or config['model_type'] == 'depth_sg_coll':
+                coll_logit = model(ts_obs_depth_curr)
+            elif model_type == 'depth_sg_coll':
+                coll_logit = model(ts_obs_depth_curr, ts_goal_depth)
+            else:
+                print("unknown NN model")
+                raise NotImplementedError
+
+            ts_collision_label = ts_collision_label.to(device)
+
+            ts_collision_pred = coll_logit
+            bad = ~torch.isfinite(ts_collision_pred)  # True where NaN/Inf
+            has_bad = bad.any().item()
+
+            if has_bad:
+                # optional: debug which values are bad
+                n_nan = torch.isnan(ts_collision_pred).sum().item()
+                n_inf = torch.isinf(ts_collision_pred).sum().item()
+                print(f"[WARN] During evaluation, collision logits contain {n_nan} NaNs and {n_inf} Infs")
+
+                # safe fallback: replace bad values (e.g., with 0 logit)
+                ts_collision_pred = torch.where(bad, torch.zeros_like(ts_collision_pred), ts_collision_pred)
+
+            losses = _compute_coll_loss(
+                coll_logit=ts_collision_pred,
+                coll_label=ts_collision_label,
+            )
+
+            for key, value in losses.items():
+                if key in loggers:
+                    logger = loggers[key]
+                    logger.log_data(value.item())
+
+    print("\n %s \n" % str_data_info[0])
+
+    #print("logging started in eval \n")
+    # Log data to wandb/console, with visualizations selected from the last batch
+    # _log_data(
+    #     data_info=str_data_info,
+    #     i=i,
+    #     epoch=epoch,
+    #     num_batches=num_batches,
+    #     normalized=normalized,
+    #     project_folder=project_folder,
+    #     num_images_log=num_images_log,
+    #     loggers=loggers,
+    #     ts_obs_images_vz=ts_curr_obs_image_vz,
+    #     ts_obs_depths_vz=ts_curr_obs_depth_vz,
+    #     ts_goal_image_vz=ts_goal_image_vz,
+    #     ts_goal_depth_vz=ts_goal_depth_vz,
+    #     ts_action_pred= ts_action_label, #ts_action_pred,
+    #     ts_action_label=ts_action_label,
+    #     ts_goal_pos=ts_goal_pose,
+    #     ts_pose_diff_pred= ts_pose_diff_label, #ts_pose_diff_pred,
+    #     ts_pose_diff_label=ts_pose_diff_label,
+    #     ts_collision_pred=ts_collision_pred,
+    #     ts_collision_label=ts_collision_label,
+    #     dataset_index=ts_dataset_index,
+    #     use_wandb=use_wandb,
+    #     mode=eval_type,
+    #     use_latest=False,
+    #     wandb_increment_step=False,
+    #     save_data_path=None, #"/home/hankm/matlab_ws/DepthNav/log"
+    # )
+
+    return total_loss_logger.average()

@@ -9,7 +9,7 @@ BASE_DIR = dirname(dirname(abspath(__file__)))
 import sys
 sys.path.append(BASE_DIR)
 
-from devgru_train.train_utils import train, evaluate #, train_coll, evaluate_coll,
+from devgru_train.train_utils import train, evaluate, train_coll, evaluate_coll
 
 import torch
 import torch.nn as nn
@@ -17,6 +17,144 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.optim import Adam
 from torchvision import transforms
+
+
+def train_eval_loop_coll(
+    goal_type: str,
+    train_model: bool,
+    model: nn.Module,
+    optimizer: Adam,
+    scheduler: Optional[torch.optim.lr_scheduler._LRScheduler],
+    dataloader: DataLoader,     # train_loader
+    test_dataloaders: Dict[str, DataLoader],
+    transform: transforms,
+    epochs: int,
+    device: torch.device,
+    project_folder: str,
+    normalized: bool,
+    wandb_log_freq: int = 10,
+    print_log_freq: int = 100,
+    image_log_freq: int = 1000,
+    num_images_log: int = 8,
+    current_epoch: int = 0,
+    alpha: float = 0.9,
+    beta: float = 0.5,
+    learn_angle: bool = False, #True,
+    use_wandb: bool = True,
+    eval_fraction: float = 0.25,
+):
+    """
+    Train and evaluate the model for several epochs (vint or gnm models)
+
+    Args:
+        train_model: whether to train the model or not
+        model: model to train
+        optimizer: optimizer to use
+        scheduler: learning rate scheduler to use
+        dataloader: dataloader for train dataset
+        test_dataloaders: dict of dataloaders for testing
+        transform: transform to apply to images
+        epochs: number of epochs to train
+        device: device to train on
+        project_folder: folder to save checkpoints and logs
+        normalized: whether to normalize the action space or not
+        wandb_log_freq: frequency of logging to wandb
+        print_log_freq: frequency of printing to console
+        image_log_freq: frequency of logging images to wandb
+        num_images_log: number of images to log to wandb
+        current_epoch: epoch to start training from
+        alpha: tradeoff between distance and action loss
+        learn_angle: whether to learn the angle or not
+        use_wandb: whether to log to wandb or not
+        eval_fraction: fraction of training data to use for evaluation
+    """
+    assert 0 <= alpha <= 1
+    latest_path = os.path.join(project_folder, f"latest.pth")
+
+    for epoch in range(current_epoch, current_epoch + epochs):
+        if train_model:
+            print(
+            f"Start DepthNav Training Epoch {epoch}/{current_epoch + epochs - 1}"
+            )
+            train_coll(
+                goal_type=goal_type,
+                model=model,
+                optimizer=optimizer,
+                dataloader=dataloader,
+                transform=transform,
+                device=device,
+                project_folder=project_folder,
+                normalized=normalized,
+                epoch=epoch,
+                alpha=alpha,
+                beta=beta,
+                learn_angle=learn_angle,
+                print_log_freq=print_log_freq,
+                wandb_log_freq=wandb_log_freq,
+                image_log_freq=image_log_freq,
+                num_images_log=num_images_log,
+                use_wandb=use_wandb,
+            )
+
+        avg_total_test_loss = []
+        for dataset_type in test_dataloaders:
+            print(
+                f"Start {dataset_type} DepthNav Testing Epoch {epoch}/{current_epoch + epochs - 1}"
+            )
+            loader = test_dataloaders[dataset_type]
+
+            total_eval_loss = evaluate_coll(
+                eval_type=dataset_type,
+                goal_type=goal_type,
+                model=model,
+                dataloader=loader,
+                transform=transform,
+                device=device,
+                project_folder=project_folder,
+                normalized=normalized,
+                epoch=epoch,
+                alpha=alpha,
+                beta=beta,
+                learn_angle=learn_angle,
+                num_images_log=num_images_log,
+                use_wandb=use_wandb,
+                eval_fraction=eval_fraction,
+            )
+
+            avg_total_test_loss.append(total_eval_loss)
+        print("Finished the evaluation for test_datasets \n")
+        checkpoint = {
+            "epoch": epoch,
+            "model": model,
+            "optimizer": optimizer,
+            "avg_total_test_loss": np.mean(avg_total_test_loss),
+            "scheduler": scheduler
+        }
+        # log average eval loss
+        if use_wandb is True:
+            wandb.log({}, commit=False)
+
+        if scheduler is not None:
+            # scheduler calls based on the type of scheduler
+            if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                scheduler.step(np.mean(avg_total_test_loss))
+            else:
+                scheduler.step()
+        if use_wandb is True:
+            wandb.log({
+                "avg_total_test_loss": np.mean(avg_total_test_loss),
+                "lr": optimizer.param_groups[0]["lr"],
+            }, commit=False)
+
+        numbered_path = os.path.join(project_folder, f"{epoch}.pth")
+        torch.save(checkpoint, latest_path)
+        torch.save(checkpoint, numbered_path)  # keep track of model at every epoch
+
+    # Flush the last set of eval logs
+    if use_wandb is True:
+        wandb.log({})
+    print()
+
 
 
 def train_eval_loop(

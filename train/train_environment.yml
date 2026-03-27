@@ -1,4 +1,4 @@
-name: vint_train
+name: devgru_train
 channels:
   - defaults
 dependencies:

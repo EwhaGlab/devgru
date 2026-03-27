@@ -128,8 +128,8 @@ def main():
     parser.add_argument("--pd_py", default="pd_controller.py")
 
     parser.add_argument("--conda_navdata", default="navdata")
-    parser.add_argument("--conda_vint_deployment", default="vint_deployment")
-    parser.add_argument("--conda_pd", default="vint_deployment")
+    parser.add_argument("--conda_devgru_deployment", default="devgru_deployment")
+    parser.add_argument("--conda_pd", default="devgru_deployment")
     parser.add_argument("--no_conda", action="store_true")
 
     # Joy stop config
@@ -211,12 +211,12 @@ def main():
               f"python3 {shlex.quote(run_slam_py)}")
 
     # Start former_client
-    init_pane(P0, None if args.no_conda else args.conda_vint_deployment,
+    init_pane(P0, None if args.no_conda else args.conda_devgru_deployment,
               f"python {shlex.quote(navigate_viz_py)}")
 
     # Start recorder after a short delay (same spirit as your script)
     time.sleep(1.0)
-    init_pane(P3, None if args.no_conda else args.conda_vint_deployment,
+    init_pane(P3, None if args.no_conda else args.conda_devgru_deployment,
               f"python {shlex.quote(recorder_py)}")
 
     # Start controller after another short delay

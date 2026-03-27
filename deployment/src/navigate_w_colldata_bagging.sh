@@ -28,7 +28,7 @@ tmux split-window -h -p 50  # Pane 1 = 17%, Pane 2 = 17%
 # Run the roslaunch command in the first pane
 
 tmux select-pane -t 0
-tmux send-keys "conda activate vint_deployment" Enter
+tmux send-keys "conda activate devgru_deployment" Enter
 tmux send-keys "source ~/catkin_ws/install/setup.bash" Enter
 tmux send-keys "python navigate_w_bagging_data.py --topomap_dir=${TOPOMAP_DIR}" Enter
 
@@ -41,7 +41,7 @@ tmux send-keys "python ~/catkin_ws/src/navdata_collector/run_script/data_collect
 # Run the pd_controller.py script in the fourth pane
 
 tmux select-pane -t 2
-tmux send-keys "conda activate vint_deployment" Enter
+tmux send-keys "conda activate devgru_deployment" Enter
 tmux send-keys "source ~/catkin_ws/install/setup.bash" Enter
 tmux send-keys "python pd_controller.py" Enter
 

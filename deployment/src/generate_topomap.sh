@@ -88,7 +88,7 @@ python create_synced_topomap.py
 
 if command -v conda >/dev/null 2>&1; then
   source "$(conda info --base)/etc/profile.d/conda.sh"
-  conda activate vint_deployment
+  conda activate devgru_deployment
 else
   echo "[WARN] conda not on PATH; skipping conda activate. Ensure deps are available."
 fi

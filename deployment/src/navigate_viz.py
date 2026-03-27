@@ -40,46 +40,8 @@ import utils.rigid_motion as rm
 from navigator import navigator
 
 from nav_logger import NavLogger
-from data.data_utils import(
-    MAX_DEPTH,
-    #_normalize_waypoints,
-    #_denormalize_waypoints,
-    #_normalize_context_poses,
-    #_denormalize_context_poses,
-    _normalize_subgoal,
-    _denormalize_subgoal,
-    _normalize_pose,
-    _denormalize_pose,
-    _get_rel_pose_se2,
-    resize_and_aspect_crop
-)
+
 import inspect
-
-# from utils.visualizing.visualize_utils import (
-#     to_numpy,
-#     numpy_to_img,
-#     VIZ_IMAGE_SIZE,
-#     RED,
-#     GREEN,
-#     BLUE,
-#     CYAN,
-#     YELLOW,
-#     MAGENTA,
-# )
-#import utils.action_utils as au
-
-# from data.data_utils import(
-#     _normalize_pose,
-#     _denormalize_pose,
-#     _get_rel_pose_se2,
-#     resize_and_aspect_crop
-# )
-
-# UTILS
-from topic_names import (RGB_TOPIC, DEPTH_TOPIC, CAMERA_INFO,
-                        WAYPOINT_TOPIC,
-                        ODOM_TOPIC,
-                        SAMPLED_ACTIONS_TOPIC)
 
 
 # CONSTANTS
@@ -88,7 +50,7 @@ TOPOMAP_IMAGES_DIR = "%s/topomaps" % DEPLOYMENT_DIR
 MODEL_WEIGHTS_PATH = "%s/model_weights"%DEPLOYMENT_DIR
 ROBOT_CONFIG_PATH = "%s/config/robot.yaml"%DEPLOYMENT_DIR
 MODEL_CONFIG_PATH = "%s/config/models.yaml"%DEPLOYMENT_DIR
-MODEL_PARAM_PATH = '%s/config/depth_nav.yaml'%BASE_DIR
+MODEL_PARAM_PATH = '%s/config/devgru.yaml'%BASE_DIR
 DATA_CONFIG_PATH = '%s/config/data_config.yaml'%BASE_DIR
 
 with open(MODEL_PARAM_PATH, "r") as f:
@@ -340,68 +302,19 @@ def main(args: argparse.Namespace):
                     #nav._correction_latch = False
                     break
 
-        # # RECOVERY MODE
-        # if model_params["normalize"]:
-        #     chosen_waypoint[:2] *= (MAX_V / RATE)
-        # waypoint_msg = Float32MultiArray()
-        # waypoint_msg.data = chosen_waypoint
-        # waypoint_pub.publish(waypoint_msg)
-        # reached_goal = closest_node == goal_node  # this is wrong b/c closest_node is always bounded in 0 ~ 5
-        # goal_pub.publish(reached_goal)
-        # if reached_goal:
-        #     print("Reached goal! Stopping...")
-        # rate.sleep()
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Code to run GNM DIFFUSION EXPLORATION on the locobot")
+        description="Code to run DevGRU on the Former")
     parser.add_argument("--save-viz-status",
                         "-s",
                         default="False",
                         type=bool,
                         help="whether save viz status figures to disk or not",
                     )
-    # parser.add_argument(
-    #     "--model",
-    #     "-m",
-    #     default="nomad",
-    #     type=str,
-    #     help="model name (only nomad is supported) (hint: check ../config/models.yaml) (default: nomad)",
-    # )
-    # parser.add_argument(
-    #     "--waypoint",
-    #     "-w",
-    #     default=2, # close waypoints exihibit straight line motion (the middle waypoint is a good default)
-    #     type=int,
-    #     help=f"""index of the waypoint used for navigation (between 0 and 4 or
-    #     how many waypoints your model predicts) (default: 2)""",
-    # )
-    # parser.add_argument(
-    #     "--dir",
-    #     "-d",
-    #     default="topomap",
-    #     type=str,
-    #     help="path to topomap images",
-    # )
-    # parser.add_argument(
-    #     "--goal-node",
-    #     "-g",
-    #     default=-1,
-    #     type=int,
-    #     help="""goal node index in the topomap (if -1, then the goal node is
-    #     the last node in the topomap) (default: -1)""",
-    # )
-    # parser.add_argument(
-    #     "--num-samples",
-    #     "-n",
-    #     default=8,
-    #     type=int,
-    #     help=f"Number of actions sampled from the exploration model (default: 8)",
-    # )
+
     args = parser.parse_args()
     print(f"Using {device}")
-    #print(f"img topic {RGB_TOPIC}")
     main(args)
 
 

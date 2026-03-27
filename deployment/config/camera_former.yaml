@@ -1,4 +1,4 @@
-# camera parameters for src/gnm_locobot.launch
+# camera parameters for src/navigate_viz.py
 video_device: "" # change this to your video device path
 image_width: 640 
 image_height: 480 

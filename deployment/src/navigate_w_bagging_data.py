@@ -342,29 +342,53 @@ def main(args: argparse.Namespace):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Code to run GNM DIFFUSION EXPLORATION on the locobot")
-    parser.add_argument(
-        "--model",
-        "-m",
-        default="nomad",
-        type=str,
-        help="model name (only nomad is supported) (hint: check ../config/models.yaml) (default: nomad)",
-    )
-    parser.add_argument(
-        "--waypoint",
-        "-w",
-        default=2, # close waypoints exihibit straight line motion (the middle waypoint is a good default)
-        type=int,
-        help=f"""index of the waypoint used for navigation (between 0 and 4 or 
-        how many waypoints your model predicts) (default: 2)""",
-    )
-    parser.add_argument(
-        "--dir",
-        "-d",
-        default="topomap",
-        type=str,
-        help="path to topomap images",
-    )
+        description="Code to run DevGRU")
+    #parser.add_argument(
+        #"--model",
+        #"-m",
+        #default="nomad",
+        #type=str,
+        #help="model name (only nomad is supported) (hint: check ../config/models.yaml) (default: nomad)",
+    #)
+    #parser.add_argument(
+        #"--waypoint",
+        #"-w",
+        #default=2, # close waypoints exihibit straight line motion (the middle waypoint is a good default)
+        #type=int,
+        #help=f"""index of the waypoint used for navigation (between 0 and 4 or 
+        #how many waypoints your model predicts) (default: 2)""",
+    #)
+    #parser.add_argument(
+        #"--dir",
+        #"-d",
+        #default="topomap",
+        #type=str,
+        #help="path to topomap images",
+    #)
+
+    #parser.add_argument(
+        #"--close-threshold",
+        #"-t",
+        #default=3,
+        #type=int,
+        #help="""temporal distance within the next node in the topomap before 
+        #localizing to it (default: 3)""",
+    #)
+    #parser.add_argument(
+        #"--radius",
+        #"-r",
+        #default=4,
+        #type=int,
+        #help="""temporal number of locobal nodes to look at in the topopmap for
+        #localization (default: 2)""",
+    #)
+    #parser.add_argument(
+        #"--num-samples",
+        #"-n",
+        #default=8,
+        #type=int,
+        #help=f"Number of actions sampled from the exploration model (default: 8)",
+    #)
     parser.add_argument(
         "--goal-node",
         "-g",
@@ -373,30 +397,6 @@ if __name__ == "__main__":
         help="""goal node index in the topomap (if -1, then the goal node is 
         the last node in the topomap) (default: -1)""",
     )
-    parser.add_argument(
-        "--close-threshold",
-        "-t",
-        default=3,
-        type=int,
-        help="""temporal distance within the next node in the topomap before 
-        localizing to it (default: 3)""",
-    )
-    parser.add_argument(
-        "--radius",
-        "-r",
-        default=4,
-        type=int,
-        help="""temporal number of locobal nodes to look at in the topopmap for
-        localization (default: 2)""",
-    )
-    parser.add_argument(
-        "--num-samples",
-        "-n",
-        default=8,
-        type=int,
-        help=f"Number of actions sampled from the exploration model (default: 8)",
-    )
-    
     parser.add_argument(
         "--topomap_dir",
         "-i",

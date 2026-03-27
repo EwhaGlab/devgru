@@ -1,11 +1,11 @@
 project_name: devgru-release
-run_name: devgru
+#run_name: action_pred #devgru
 
 # training setup
 use_wandb: False # set to false if you don't want to log to wandb
 train: True
-batch_size: 32 #256   # 32 for colldata,  256 for navdata
-epochs: 4 #100 #75
+batch_size: 256   # 32 for colldata,  256 for navdata
+epochs: 50 #75
 gpu_ids: [0]
 num_workers: 12
 lr: 5e-4
@@ -14,14 +14,14 @@ clipping: False
 #max_norm: 1.
 scheduler: "cosine"
 warmup: True 
-#warmup_epochs: 4
+warmup_epochs: 4
 #cyclic_period: 10
 #plateau_patience: 3
 #plateau_factor: 0.5
 seed: 0
 
 # model params
-model_type: "devgru_ap" # "devgru_cp"  #"depth_coll" # #"image_pose_rnn"
+model_type: "devgru_ap" #"devgru_cp" #   #"depth_coll" # 
 obs_encoder: "efficientnet-b0" # by default, this is imagenet pretrained
 obs_encoding_size: 512
 odom_encoding_size: 64
@@ -95,14 +95,14 @@ wandb_log_freq: 10 # in iterations
 eval_freq: 1 # in epochs
 
 #################################################################
-# This config also used in split_data.py 
+# configs for split_data.py 
 #################################################################
 data_split:
   split_ratio: 0.8  # (train 0.8, val 0.2)
   former:
-    data_folder: /storage/data/mydata/former_ewha/mixed_2K 
-    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_2K/train
-    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_2K/test
+    data_folder: /storage/data/mydata/former_ewha/mixed_20K 
+    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
+    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
     waypoint_spacing: 3
     negative_mining: True
 #################################################################
@@ -110,23 +110,25 @@ data_split:
 #################################################################
 datasets:
   former: 
-    data_folder: /storage/data/mydata/former_ewha/mixed_2K 
-    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_2K/train
-    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_2K/test
+    data_folder: /storage/data/mydata/former_ewha/mixed_20K 
+    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
+    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
     end_slack: 3
     goals_per_obs: 1
     negative_mining: True
     waypoint_spacing: 3 #1      # frame_to_frame spacing  
 
     
-  #isaac_sim: 
-    #data_folder: /media/data/mydata/isaacsim_dataset/0512/data #/media/data/pubdata/viznav_dataset/former/data_splits/train
-    #train: /media/data/mydata/viznav/data_splits/isaacsim/0512/train 
-    #test:  /media/data/mydata/viznav/data_splits/isaacsim/0512/test  
-
-    #end_slack: 3
-    #goals_per_obs: 1
-    #negative_mining: True
+#################################################################
+# configs for train_collision_predictor.py 
+#################################################################
+collision_datasets:
+  former:
+    data_folder: /storage/data/mydata/former_ewha/mixed_20K 
+    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
+    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
+    waypoint_spacing: 3
+    
 ##################################################################
 # used for deployment 
 ##################################################################

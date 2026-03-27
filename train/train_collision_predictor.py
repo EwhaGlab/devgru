@@ -14,25 +14,20 @@ from torchvision import transforms
 import torch.backends.cudnn as cudnn
 from warmup_scheduler import GradualWarmupScheduler
 
-from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
-from diffusers.optimization import get_scheduler
-
 """
 IMPORT YOUR MODEL HERE
 """
 
 from os.path import dirname, abspath
-#BASE_DIR = dirname(dirname(dirname(abspath(__file__))))
 BASE_DIR = dirname(dirname(abspath(__file__)))
 import sys
 sys.path.append(BASE_DIR)
 #print("base dir from train_isaac:", BASE_DIR)
 
-from models.coll_det.depth_coll import DepthCollision
-from models.coll_det.depth_sg_coll import DepthSGCollision
-#from depth_nav_train.data.depth_nav_dataset import
+from models.coll_pred.devgru_cp import DepthCollision
+#from models.coll_pred.depth_sg_coll import DepthSGCollision
 from data.collision_dataset import Collision_Dataset
-from depth_nav_train.train_eval_loop import (
+from devgru_train.train_eval_loop import (
     train_eval_loop_coll,
     load_model,
 )
@@ -175,46 +170,47 @@ def main(config):
     # model = torch.load(pretained_policy_path)
 
     # Create the model
-    if config["model_type"] == "depth_coll":
-        if config["goal_type"] == "rgb":
-            model = DepthCollision(
-                obs_encoder=config["obs_encoder"],
-                obs_encoding_size=config["obs_encoding_size"],
-                num_ch=3,
-                pretrained=True,
-                dropout_p=0.2,
-                freeze_backbone_bn=False
-            )
-        else:
-            model = DepthCollision(
-                obs_encoder=config["obs_encoder"],
-                obs_encoding_size=config["obs_encoding_size"],
-                num_ch=1,
-                pretrained=True,
-                dropout_p=0.2,
-                freeze_backbone_bn=False
-            )
-    elif config["model_type"] == "depth_sg_coll":
-        if config["goal_type"] == "rgb":
-            model = DepthSGCollision(
-                obs_encoder=config["obs_encoder"],
-                obs_encoding_size=config["obs_encoding_size"],
-                num_ch=3,
-                pretrained=True,
-                dropout_p=0.2,
-                freeze_backbone_bn=False
-            )
-        else:
-            model = DepthSGCollision(
-                obs_encoder=config["obs_encoder"],
-                obs_encoding_size=config["obs_encoding_size"],
-                num_ch=1,
-                pretrained=True,
-                dropout_p=0.2,
-                freeze_backbone_bn=False
-            )
+    model_type = "devgru_cp"
+    #if config["model_type"] == "devgru_cp":
+    if config["goal_type"] == "rgb":
+        model = DepthCollision(
+            obs_encoder=config["obs_encoder"],
+            obs_encoding_size=config["obs_encoding_size"],
+            num_ch=3,
+            pretrained=True,
+            dropout_p=0.2,
+            freeze_backbone_bn=False
+        )
     else:
-        raise ValueError(f"Model {config['model']} not supported")
+        model = DepthCollision(
+            obs_encoder=config["obs_encoder"],
+            obs_encoding_size=config["obs_encoding_size"],
+            num_ch=1,
+            pretrained=True,
+            dropout_p=0.2,
+            freeze_backbone_bn=False
+        )
+    # elif config["model_type"] == "depth_sg_coll":
+    #     if config["goal_type"] == "rgb":
+    #         model = DepthSGCollision(
+    #             obs_encoder=config["obs_encoder"],
+    #             obs_encoding_size=config["obs_encoding_size"],
+    #             num_ch=3,
+    #             pretrained=True,
+    #             dropout_p=0.2,
+    #             freeze_backbone_bn=False
+    #         )
+    #     else:
+    #         model = DepthSGCollision(
+    #             obs_encoder=config["obs_encoder"],
+    #             obs_encoding_size=config["obs_encoding_size"],
+    #             num_ch=1,
+    #             pretrained=True,
+    #             dropout_p=0.2,
+    #             freeze_backbone_bn=False
+    #         )
+    # else:
+    #     raise ValueError(f"Model {config['model']} not supported")
 
     if config["clipping"]:
         print("Clipping gradients to", config["max_norm"])
@@ -281,7 +277,7 @@ def main(config):
         print("Loading model from ", load_project_folder)
         latest_path = os.path.join(load_project_folder, "latest.pth")
         latest_checkpoint = torch.load(latest_path) #f"cuda:{}" if torch.cuda.is_available() else "cpu")
-        load_model(model, config["model_type"], latest_checkpoint)
+        load_model(model, model_type, latest_checkpoint)
         if "epoch" in latest_checkpoint:
             current_epoch = latest_checkpoint["epoch"] + 1
 
@@ -299,32 +295,32 @@ def main(config):
             scheduler.load_state_dict(latest_checkpoint["scheduler"].state_dict())
 
     print("START TRAINING")
-    if config["model_type"] == "depth_coll" or config["model_type"] == "depth_sg_coll":
-        train_eval_loop_coll(
-            goal_type=config["goal_type"],
-            train_model=config["train"],
-            model=model,
-            optimizer=optimizer,
-            scheduler=scheduler,
-            dataloader=train_loader,
-            test_dataloaders=test_dataloaders,
-            transform=transform,
-            epochs=config["epochs"],
-            device=device,
-            project_folder=config["project_folder"],
-            normalized=config["normalize"],
-            print_log_freq=config["print_log_freq"],
-            image_log_freq=config["image_log_freq"],
-            num_images_log=config["num_images_log"],
-            current_epoch=current_epoch,
-            learn_angle=config["learn_angle"],
-            alpha=config["alpha"],
-            beta =config["beta"],
-            use_wandb=config["use_wandb"],
-            eval_fraction=config["eval_fraction"],
-        )
-    else:
-        raise ValueError(f"Model {config['model_type']} is not supported")
+    #if config["model_type"] == "devgru_cp": # or config["model_type"] == "depth_sg_coll":
+    train_eval_loop_coll(
+        goal_type=config["goal_type"],
+        train_model=config["train"],
+        model=model,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        dataloader=train_loader,
+        test_dataloaders=test_dataloaders,
+        transform=transform,
+        epochs=config["epochs"],
+        device=device,
+        project_folder=config["project_folder"],
+        normalized=config["normalize"],
+        print_log_freq=config["print_log_freq"],
+        image_log_freq=config["image_log_freq"],
+        num_images_log=config["num_images_log"],
+        current_epoch=current_epoch,
+        learn_angle=config["learn_angle"],
+        alpha=config["alpha"],
+        beta =config["beta"],
+        use_wandb=config["use_wandb"],
+        eval_fraction=config["eval_fraction"],
+    )
+    # else:
+    #     raise ValueError(f"Model {config['model_type']} is not supported")
 
     print("FINISHED TRAINING")
 
@@ -337,7 +333,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         "-c",
-        default="../config/depth_nav.yaml",
+        default="../config/devgru.yaml",
         type=str,
         help="Path to the config file in train_config folder",
     )
@@ -352,9 +348,10 @@ if __name__ == "__main__":
         user_config = yaml.safe_load(f)
 
     config.update(user_config)
-    config["run_name"] += "_" + time.strftime("%Y_%m_%d_%H_%M_%S")
+    run_name = config["project_name"]+"/coll_pred"
+    run_name += "_" + time.strftime("%Y_%m_%d_%H_%M_%S")
     config["project_folder"] = os.path.join(
-        "logs", config["project_name"], config["run_name"]
+        "logs", run_name
     )
     os.makedirs(
         config[
@@ -365,9 +362,9 @@ if __name__ == "__main__":
     if config["use_wandb"]:
         wandb.login()
         wandb.init(
-            project=config["project_name"],
+            project="coll_pred", #config["project_name"],
             settings=wandb.Settings(start_method="fork"),
-            entity="hankm",#"gnmv2", # TODO: change this to your wandb entity
+            entity="hankm", # TODO: change this to your wandb entity
         )
         base_path = os.path.dirname(args.config)
         wandb.save(args.config, base_path=base_path, policy="now")  # save the config file

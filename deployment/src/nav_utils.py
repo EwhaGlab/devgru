@@ -19,18 +19,16 @@ from typing import List, Tuple, Dict, Optional
 from cv_bridge import CvBridge
 bridge = CvBridge()
 # models
-#from diffusion_policy.model.diffusion.conditional_unet1d import ConditionalUnet1D
-#from vint_train.data.data_utils import IMAGE_ASPECT_RATIO
 
 from os.path import dirname, abspath
 BASE_DIR = dirname(dirname(dirname(abspath(__file__))))
 import sys
 sys.path.append(BASE_DIR)
-from models.image_rnn.image_rnn import ImageRNN
-from models.image_rnn.image_pose_rnn import ImagePoseRNN
-from models.image_rnn.dev_gru import DevGRU
-from models.coll_det.depth_coll import DepthCollision
-from models.coll_det.depth_sg_coll import DepthSGCollision
+#from models.image_rnn.image_rnn import ImageRNN
+#from models.image_rnn.image_pose_rnn import ImagePoseRNN
+from models.image_rnn.devgru_ap import DevGRU
+from models.coll_pred.devgru_cp import DepthCollision
+from models.coll_pred.depth_sg_coll import DepthSGCollision
 
 
 MAX_DEPTH = 65535
@@ -43,29 +41,8 @@ def load_model(
     """Load a model from a checkpoint file (works with models trained on multiple GPUs)"""
     #model_type = config["deployment"]["model_type"]
     print("%s"%model_type)
-    if model_type == "image_pose_rnn":
-        if config["goal_type"] == "rgb":
-            model = ImagePoseRNN(
-                context_size=config["context_size"],
-                len_traj_pred=config["len_traj_pred"],
-                learn_angle=config["learn_angle"],
-                obs_encoder=config["obs_encoder"],
-                obs_encoding_size=config["obs_encoding_size"],
-                odom_encoding_size=config["odom_encoding_size"],
-                num_ch=3,
-            )
-        else:
-            model = ImagePoseRNN(
-                context_size=config["context_size"],
-                len_traj_pred=config["len_traj_pred"],
-                learn_angle=config["learn_angle"],
-                obs_encoder=config["obs_encoder"],
-                obs_encoding_size=config["obs_encoding_size"],
-                odom_encoding_size=config["odom_encoding_size"],
-                num_ch=1,
-            )
 
-    elif model_type == "depth_coll":
+    if model_type == "devgru_cp":
         if config["goal_type"] == "rgb":
             model = DepthCollision(
                 obs_encoder=config["obs_encoder"],
@@ -97,7 +74,7 @@ def load_model(
                 dropout_p=0.2,
                 freeze_backbone_bn=False
             )
-    elif model_type == "dev_gru":
+    elif model_type == "devgru_cp":
         if config["goal_type"] == "rgb":
             model = DevGRU(
                 context_size=config["context_size"],
@@ -124,17 +101,13 @@ def load_model(
         raise ValueError(f"Invalid model type: {model_type}")
     
     checkpoint = torch.load(model_path, map_location=device)
-    if model_type == "nomad":
-        state_dict = checkpoint
+    loaded_model = checkpoint["model"]
+    try:
+        state_dict = loaded_model.module.state_dict()
         model.load_state_dict(state_dict, strict=False)
-    else:
-        loaded_model = checkpoint["model"]
-        try:
-            state_dict = loaded_model.module.state_dict()
-            model.load_state_dict(state_dict, strict=False)
-        except AttributeError as e:
-            state_dict = loaded_model.state_dict()
-            model.load_state_dict(state_dict, strict=False)
+    except AttributeError as e:
+        state_dict = loaded_model.state_dict()
+        model.load_state_dict(state_dict, strict=False)
     model.to(device)
     return model
 
