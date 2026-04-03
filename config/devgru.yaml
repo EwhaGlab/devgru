@@ -4,20 +4,16 @@ project_name: devgru-release
 # training setup
 use_wandb: False # set to false if you don't want to log to wandb
 train: True
-batch_size: 256   # 32 for colldata,  256 for navdata
-epochs: 50 #75
+batch_size: 256 # 32 for colldata,  256 for navdata
+epochs: 100 #75
 gpu_ids: [0]
 num_workers: 12
 lr: 5e-4
 optimizer: adamw
 clipping: False
-#max_norm: 1.
 scheduler: "cosine"
 warmup: True 
 warmup_epochs: 4
-#cyclic_period: 10
-#plateau_patience: 3
-#plateau_factor: 0.5
 seed: 0
 
 # model params
@@ -25,9 +21,6 @@ model_type: "devgru_ap" #"devgru_cp" #   #"depth_coll" #
 obs_encoder: "efficientnet-b0" # by default, this is imagenet pretrained
 obs_encoding_size: 512
 odom_encoding_size: 64
-#mha_num_attention_heads: 4
-#mha_num_attention_layers: 4
-#mha_ff_dim_factor: 4
 late_fusion: False
 
 # normalization for the action space
@@ -61,28 +54,6 @@ goal_type: depth ##"rgb" # depth
 
 use_time_weight: False #True
 
-#################################################################
-# The dataset used for train_former.py (negative collision only)
-
-#datasets:
-  #former: 
-    #data_folder: /media/mydata/former_datasets/former_all
-    #train: /media/data/mydata/viznav/data_splits/former_all/ws3/train 
-    #test:  /media/data/mydata/viznav/data_splits/former_all/ws3/test  
-    #end_slack: 3
-    #goals_per_obs: 1
-    #negative_mining: True
-    #waypoint_spacing: 3 #1      # frame_to_frame spacing  
-
-    
-  #isaac_sim: 
-    #data_folder: /media/data/mydata/isaacsim_dataset/0512/data #/media/data/pubdata/viznav_dataset/former/data_splits/train
-    #train: /media/data/mydata/viznav/data_splits/isaacsim/0512/train 
-    #test:  /media/data/mydata/viznav/data_splits/isaacsim/0512/test  
-
-    #end_slack: 3
-    #goals_per_obs: 1
-    #negative_mining: True
 
 # logging stuff
 ## =0 turns off
@@ -100,9 +71,9 @@ eval_freq: 1 # in epochs
 data_split:
   split_ratio: 0.8  # (train 0.8, val 0.2)
   former:
-    data_folder: /storage/data/mydata/former_ewha/mixed_20K 
-    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
-    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
+    data_folder: /media/data/mydata/former_ewha/mixed_20K
+    train: /media/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
+    test:  /media/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
     waypoint_spacing: 3
     negative_mining: True
 #################################################################
@@ -110,9 +81,9 @@ data_split:
 #################################################################
 datasets:
   former: 
-    data_folder: /storage/data/mydata/former_ewha/mixed_20K 
-    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
-    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
+    data_folder: /media/data/mydata/former_ewha/mixed_20K
+    train: /media/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
+    test:  /media/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
     end_slack: 3
     goals_per_obs: 1
     negative_mining: True
@@ -124,9 +95,9 @@ datasets:
 #################################################################
 collision_datasets:
   former:
-    data_folder: /storage/data/mydata/former_ewha/mixed_20K 
-    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
-    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
+    data_folder: /media/data/mydata/former_ewha/mixed_20K
+    train: /media/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
+    test:  /media/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
     waypoint_spacing: 3
     
 ##################################################################

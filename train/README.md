@@ -12,7 +12,7 @@ Executing the following cmds to split the real world dataset collected from FORM
 ```
 cd $PROJECT_DIR/train
 conda activate devgru_train
-python data_split.py
+python split_data.py
 ```
 
 Here, $PROJECT_DIR refers to where the devgru project is located e.g) /home/$USER$python_ws/devgru
