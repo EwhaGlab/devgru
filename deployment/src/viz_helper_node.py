@@ -35,7 +35,7 @@ from nav_msgs.msg import Odometry
 from std_msgs.msg import Bool, Float32MultiArray
 from nav_utils import msg_to_pil, to_numpy, transform_images, load_model
 
-from vint_train.training.train_utils import get_action
+from devgru_train.training.train_utils import get_action
 #from train.depth_nav_train.train_utils import get_action
 
 import torch

@@ -1,10 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# -------------------------------
-# Usage: ./create_topomap.sh <TOPOMAP_NAME> <EXTRACTED_DATA_DIR>
-# Example: ./create_topomap.sh topomap0 ~/extracted_data
-# -------------------------------
 
 # Exit if no args provided
 if [ $# -lt 1 ]; then
@@ -25,7 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(realpath "$SCRIPT_DIR/../..")"
 
 # CONFIG_FILE lives under $PROJECT_DIR/config
-DEPTH_CFG="$PROJECT_DIR/config/depth_nav.yaml"
+DEPTH_CFG="$PROJECT_DIR/config/devgru.yaml"
 
 TOPOMAP_NAME=$(grep -E '^[[:space:]]*topomap_name:' "$DEPTH_CFG" \
     | sed 's/#.*//' \
@@ -59,7 +55,7 @@ conda activate navdata
 cd "$NAVDATA_EXTRACTOR_DIR"
 
 echo "executing $EXTRACTOR_SCRIPT"
-#python $EXTRACTOR_SCRIPT "../../param/navdata_collector.yaml"
+python $EXTRACTOR_SCRIPT "../../param/navdata_collector.yaml"
 
 
 # 1. Make directory

@@ -74,7 +74,7 @@ def load_model(
                 dropout_p=0.2,
                 freeze_backbone_bn=False
             )
-    elif model_type == "devgru_cp":
+    elif model_type == "devgru_ap":
         if config["goal_type"] == "rgb":
             model = DevGRU(
                 context_size=config["context_size"],

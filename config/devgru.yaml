@@ -105,7 +105,7 @@ collision_datasets:
 ##################################################################
 deployment:
     dataset_name: former
-    topomap_name: T0 #T32 #T1-1 # 
+    topomap_name: T1 #T32 #T1-1 # 
     nav_model_type: devgru_ap #dev_gru
     col_model_type: devgru_cp #depth_coll  # depth_sg_coll
     use_coll_pred_model: True
@@ -114,8 +114,8 @@ deployment:
     subgoal_spacing: 1  # sg frames to skip (1 skips none, 2 skips 1) 
     xy_dist_thr: 0.5    # meter    
     ang_dist_thr: 5     # deg
-    nav_ckpth_name: devgru-last_dim_32.pth # devgru-base.pth # #devgru-two_heads-mixed_12K.pth 
-    col_ckpth_name: dev_coll-depth_only-20K.pth #dev_coll-curr_sg-20K.pth #   
+    nav_ckpth_name: devgru_ap.pth # devgru-base.pth # #devgru-two_heads-mixed_12K.pth 
+    col_ckpth_name: devgru_cp.pth #dev_coll-curr_sg-20K.pth #   
     nav_log_dir: /media/glab/FetchSSD/results/base_lines/devgru
     #ckpth_name: image_pose_rnn-ws3.pth
 

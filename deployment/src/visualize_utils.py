@@ -32,7 +32,7 @@ CYAN = np.array([0, 1, 1])
 YELLOW = np.array([1, 1, 0])
 MAGENTA = np.array([1, 0, 1])
 
-MODEL_PARAM_PATH = '%s/config/depth_nav.yaml'%BASE_DIR
+MODEL_PARAM_PATH = '%s/config/devgru.yaml'%BASE_DIR
 DATA_CONFIG_PATH = '%s/config/data_config.yaml'%BASE_DIR
 
 with open(MODEL_PARAM_PATH, "r") as f:

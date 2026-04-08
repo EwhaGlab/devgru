@@ -104,7 +104,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         "-c",
-        default="%s/config/depth_nav.yaml"%BASE_DIR,
+        default="%s/config/devgru.yaml"%BASE_DIR,
         type=str,
         help="Path to the config file in train_config folder",
     )
