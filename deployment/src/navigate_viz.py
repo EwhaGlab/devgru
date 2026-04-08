@@ -125,7 +125,7 @@ def main(args: argparse.Namespace):
     nav_ckpth_name = model_params['deployment']["nav_ckpth_name"]
     col_ckpth_name = model_params['deployment']["col_ckpth_name"]
     nav_ckpth_path = MODEL_WEIGHTS_PATH + "/" + nav_ckpth_name
-    col_ckpth_path = MODEL_WEIGHTS_PATH + "/collision/" + col_ckpth_name
+    col_ckpth_path = MODEL_WEIGHTS_PATH + "/" + col_ckpth_name
 
     if os.path.exists(col_ckpth_path):
         print(f"Loading col model from {col_ckpth_path}")

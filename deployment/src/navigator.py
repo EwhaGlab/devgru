@@ -1052,9 +1052,9 @@ class navigator():
         # print("contxt + cur actions shape:", ts_context_action.shape)   # B(1), Contxt+curr (6), num_params
         # print("goal shape", ts_goal_pose.shape)                         # B(1), num_params
 
-        if model_type == 'image_pose_rnn':
-            model_outputs = model(ts_obs_depths, ts_goal_depth, ts_context_action, ts_sg_pose)
-        elif model_type == 'dev_gru':
+        #if model_type == 'image_pose_rnn':
+            #model_outputs = model(ts_obs_depths, ts_goal_depth, ts_context_action, ts_sg_pose)
+        if model_type == 'devgru_ap':
             model_outputs = model(ts_obs_depths, ts_goal_depth, ts_context_action, ts_sg_pose)
         else:
             raise ValueError("unknown model type")
@@ -1104,7 +1104,7 @@ class navigator():
         # correct context odom pose
         # corrected_odom_context = odom_context_correction (context_pose_queue, correcting_htm)
 
-        if model_type == 'depth_coll':
+        if model_type == 'devgru_cp':
             model_outputs = model(ts_obs_depth_curr)
         elif model_type == 'depth_sg_coll':
             model_outputs = model(ts_obs_depth_curr, ts_goal_depth)
