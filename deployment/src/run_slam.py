@@ -36,7 +36,7 @@ BTN_L2 = 6  # sometimes L2 is an axis; see below
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DEPL_CONFIG_PATH = (
-    BASE_DIR / "config" / "depth_nav.yaml"
+    BASE_DIR / "config" / "devgru.yaml"
 )
 #print("config path: %s"%DEPL_CONFIG_PATH)
 

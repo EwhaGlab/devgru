@@ -1128,7 +1128,7 @@ class navigator():
         nsg_x_w = w_H_nsg[0,3]
         nsg_y_w = w_H_nsg[1,3]
 
-        osg_x_w, osg_y_w, _ = self.topomap_odom[self.curr_sg_idx]
+        osg_x_w, osg_y_w, osg_th_w = self.topomap_odom[self.curr_sg_idx]
         dx = nsg_x_w - osg_x_w
         dy = nsg_y_w - osg_y_w
 
@@ -1136,6 +1136,23 @@ class navigator():
             osg_x, osg_y, osg_th = self.topomap_odom[idx]
             self.topomap_odom[idx] = [osg_x + dx, osg_y + dy, osg_th]
 
+        ################################################################################
+        # SE2 Config
+        ################################################################################
+        # nsg_x, nsg_y, _, _, _, nsg_th = rm.htm_to_xyzrpy(w_H_r)
+        # [nsg_qw, nsg_qz] = rm.theta_to_qwqz(nsg_th)
+        # [osg_qw, osg_qz] = rm.theta_to_qwqz(osg_th)
+        # Delta_P = rm.ominus_se2([nsg_x, nsg_y, nsg_qw, nsg_qz], [osg_x, osg_y, osg_qw, osg_qz])
+        # for idx in range(self.curr_sg_idx, len(self.topomap_odom)):
+        #     osg_x, osg_y, osg_th = self.topomap_odom[idx]
+        #     [osg_qw, osg_qz] = rm.theta_to_qwqz(osg_th)
+        #     x_n, y_n, qw_n, qz_n = rm.oplus_se2([osg_x, osg_y, osg_qw, osg_qz], Delta_P)
+        #     th_n = rm.quat_to_yaw(qw_n, qz_n)
+        #     self.topomap_odom[idx] = [x_n, y_n, th_n]
+
+        ################################################################################
+        # SE3 Config
+        ################################################################################
         # r_H_nsg = rm.quat_to_htm([nsg_qw, 0, 0, nsg_qz])
         # r_H_nsg[0:2,3] = [nsg_x, nsg_y]
         # [rx, ry, rth] = self.curr_robot_pose_corrected
@@ -1157,6 +1174,8 @@ class navigator():
         # # update curr sg
 
         self._curr_rel_sg_pose = np.array([nsg_x, nsg_y, nsg_th]) # np.array([rel_x, rel_y, rel_theta])
+
+
 
     def navstep(self, nav_model, nav_model_type,
                                            col_model, col_model_type,

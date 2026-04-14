@@ -23,7 +23,6 @@ BASE_DIR = dirname(dirname(abspath(__file__)))  # proj root dir
 # 2. the processed (synced) files should be under /media/results/navdata_collector/processed/~~~~/bag_2025_~~~~/synced/
 # 3. Make sure to run this script before processing the two scripts above
 
-
 def remove_files_in_dir(dir_path: str):
     for f in os.listdir(dir_path):
         file_path = os.path.join(dir_path, f)
@@ -34,7 +33,6 @@ def remove_files_in_dir(dir_path: str):
                 shutil.rmtree(file_path)
         except Exception as e:
             print("Failed to delete %s. Reason: %s" % (file_path, e))
-
 
 def main(config):
     ############################################################

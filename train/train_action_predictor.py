@@ -28,7 +28,7 @@ from models.image_rnn.devgru_ap import DevGRU
 #from depth_nav_train.data.depth_nav_dataset import
 from data.devgru_dataset import DevGRU_Dataset
 from devgru_train.train_eval_loop import (
-    train_eval_loop,
+    ap_train_eval_loop,
     load_model,
 )
 
@@ -282,7 +282,7 @@ def main(config):
     image_log_freq = 1000
     print("START TRAINING")
     if config["model_type"] == "devgru_ap":
-        train_eval_loop(
+        ap_train_eval_loop(
             goal_type=config["goal_type"],
             train_model=config["train"],
             model=model,

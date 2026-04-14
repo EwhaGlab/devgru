@@ -19,7 +19,8 @@ from torch.optim import Adam
 from torchvision import transforms
 
 
-def train_eval_loop_coll(
+# collision_predictor
+def cp_train_eval_loop(
     goal_type: str,
     train_model: bool,
     model: nn.Module,
@@ -156,8 +157,8 @@ def train_eval_loop_coll(
     print()
 
 
-
-def train_eval_loop(
+# action_predictor
+def ap_train_eval_loop(
     goal_type: str,
     train_model: bool,
     model: nn.Module,

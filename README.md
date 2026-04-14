@@ -1,8 +1,10 @@
 # DevGRU
 
-DevGRU is a deep learning-based topological navigation framework designed for long-horizon navigation without requiring global localization or a dense obstacle map.
+DevGRU is a deep learning-based navigation framework designed for long-horizon navigation without requiring global localization or a dense obstacle map.
 
 Given a pre-built topological map, the robot sequentially visits intermediate sub-goals to reach the final destination. DevGRU leverages both depth observations and point-goal information for navigation.
+
+Pretrained weights and dataset are available at: [Pretrained Weights](https://www.dropbox.com/scl/fi/8l3doezf2y6c1ac43e6n6/devgru_model_weights.zip?rlkey=0ypbtan7zhloiczqj0jhzq7u9&st=xtcabllg&dl=0) and [Dataset](#).
 
 ## Dependencies
 
@@ -19,7 +21,7 @@ DevGRU is designed to operate within a ROS-based Conda Env:
 To run DevGRU, two main components must be installed:
 
 - **DevGRU (this repository)**: training and deployment framework  
-- **NavDataCollector** ([link](#)): dataset collection and deployment support  
+- [**NavDataCollector**](https://github.com/han-kyung-min/navdata_collector.git): dataset collection and deployment support  
 
 ---
 ## Overview
@@ -164,7 +166,7 @@ The trained models and their logs are saved under $PROJECT_DIR/train/logs using 
 Make sure that both the [DevGRU project](#setup-devgru) and [NavDataCollector](https://github.com/han-kyung-min/navdata_collector) are installed before proceeding with the steps below.
 
 Although users can train models by following the [training step](#howto-train)  
-we also provide pre-trained models available at [THIS LINK](#)
+we also provide pre-trained models available at [THIS LINK](https://www.dropbox.com/scl/fi/8l3doezf2y6c1ac43e6n6/devgru_model_weights.zip?rlkey=0ypbtan7zhloiczqj0jhzq7u9&st=xtcabllg&dl=0)
 
 The trained models should be copied to $PROJECT_DIR/deployment/model_weights
 
@@ -233,7 +235,7 @@ cd ~/catkin_ws/src/navdata_collector/run_script/data_extractor
 python generate_topomap_from_bag.py
 ```
 
-The first command sets ROS_MASTER_URI to 127.0.0.1, disconnecting the session from the robot’s ROS master.
+`set_ros_local.sh` sets `ROS_MASTER_URI` to 127.0.0.1, disconnecting the session from the robot’s ROS master.
 The following procedure extracts and synchronizes the metadata from the bag files recorded in the previous step.  
 The extracted data is then copied to `$TOPOMAP_DIR`, where `slam_poses.txt` and the final topological map are generated.
     
@@ -256,7 +258,9 @@ Then, do the following procedure:
 >cd $PROJECT_DIR/deployment/src
 >python run_navigate_viz.py
 >```
->The first command configures ROS_MASTER_URI and ROS_HOSTNAME.   
+>`set_ros_former.sh` sets `ROS_MASTER_URI` and `ROS_HOSTNAME` according to the values specified in the file, allowing the PC to connect to the robot.
+The following procedure extracts and synchronizes the metadata from the bag files recorded in the previous step.  
+The extracted data is then copied to `$TOPOMAP_DIR`, where `slam_poses.txt` and the final topological map are generated. configures ROS_MASTER_URI and ROS_HOSTNAME.   
 The remaining commands execute the navigation procedure.  
 >If you want to record navigation logs with SLAM (not required for navigation, but useful for quantitative analysis),  
 >use the following command instead of `run_navigate_viz.py`.
@@ -266,7 +270,7 @@ The remaining commands execute the navigation procedure.
 >```
 
 ---
-## 4. [How to Collection Collision Dataset](deployment/HOW_TO_COLLECT_COLLISION_DATA.md)
+## 4. [How to Collect Dataset](https://github.com/han-kyung-min/navdata_collector.git)
 
 ---
 ## Acknowledgment

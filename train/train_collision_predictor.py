@@ -28,7 +28,7 @@ from models.coll_pred.devgru_cp import DepthCollision
 #from models.coll_pred.depth_sg_coll import DepthSGCollision
 from data.collision_dataset import Collision_Dataset
 from devgru_train.train_eval_loop import (
-    train_eval_loop_coll,
+    cp_train_eval_loop,
     load_model,
 )
 
@@ -296,7 +296,7 @@ def main(config):
 
     print("START TRAINING")
     #if config["model_type"] == "devgru_cp": # or config["model_type"] == "depth_sg_coll":
-    train_eval_loop_coll(
+    cp_train_eval_loop(
         goal_type=config["goal_type"],
         train_model=config["train"],
         model=model,
