@@ -31,9 +31,9 @@ from topic_names import (RGB_TOPIC, DEPTH_TOPIC, CAMERA_INFO,
                         ODOM_TOPIC, REACHED_GOAL_TOPIC,
                         SAMPLED_ACTIONS_TOPIC)
 
-DEPL_CONFIG_PATH = f"{BASE_DIR}/config/depth_nav.yaml"
+DEPL_CONFIG_PATH = f"{BASE_DIR}/config/devgru.yaml"
 with open(DEPL_CONFIG_PATH, "r") as f:
-    depth_nav_config = yaml.safe_load(f)
+    devgru_config = yaml.safe_load(f)
 
 def ensure_dir(p: str):
     os.makedirs(p, exist_ok=True)
@@ -62,7 +62,7 @@ class NavstepDumperNode:
     def __init__(self):
         self.topic = "/navstep"
         self.odom_topic = ODOM_TOPIC
-        self.base_out_dir = depth_nav_config["deployment"]["nav_log_dir"]
+        self.base_out_dir = devgru_config["deployment"]["nav_log_dir"]
         self.write_png = True
         self.png_compression = 3
         self.flush_every = 50
@@ -325,7 +325,7 @@ class NavstepDumperNode:
         nav_end_time = rospy.Time.now()
         nav_elapsed_sec = (nav_end_time - self.nav_begin_time).to_sec()
 
-        topomap_path = BASE_DIR + "/deployment/topomaps/" + depth_nav_config["deployment"]["topomap_name"]
+        topomap_path = BASE_DIR + "/deployment/topomaps/" + devgru_config["deployment"]["topomap_name"]
         print(topomap_path)
         topo_tf_m2b_file = f"{topomap_path}/topo_tf_m2b.txt"
         topo_tf_m2b = np.loadtxt(topo_tf_m2b_file)
@@ -351,7 +351,7 @@ class NavstepDumperNode:
 
         nav_summary_path = f"{self.out_dir}/nav_summary.txt"
         with open(nav_summary_path, "w") as f:
-            f.write(f"devgru summary on {depth_nav_config['deployment']['topomap_name']}\n")
+            f.write(f"devgru summary on {devgru_config['deployment']['topomap_name']}\n")
             f.write(f"final goal reached: {self._is_goal_reached}\n")
 
             f.write(f"covered node idx / last node idx : {covered_idx} / {num_nodes-1}\n")

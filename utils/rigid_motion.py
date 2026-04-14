@@ -279,3 +279,82 @@ def normalizeAngle( fangle_rad, type: bool= 1 ) -> float:
     #         ang_deg -= 180
     #     return ang_deg * PI / 180
 
+def theta_to_qwqz(theta):
+    """Convert yaw theta to planar quaternion (qw, qz)."""
+    return np.cos(theta / 2.0), np.sin(theta / 2.0)
+
+def quat_to_yaw(qw, qz):
+    """Convert planar quaternion (qw, qz) back to yaw."""
+    return 2.0 * np.arctan2(qz, qw)
+
+def yaw_to_quat(theta):
+    """Convert yaw to planar quaternion."""
+    return np.cos(theta / 2.0), np.sin(theta / 2.0)
+
+def wrap_to_pi(angle):
+    """Normalize angle to [-pi, pi]."""
+    return (angle + np.pi) % (2 * np.pi) - np.pi
+
+def ominus_se2(P_new, P_old):
+    """
+    Compute Delta_P = ominus(P_new, P_old)
+
+    Inputs:
+        P_new = [x_n, y_n, qw_n, qz_n]
+        P_old = [x_o, y_o, qw_o, qz_o]
+
+    Returns:
+        Delta_P = [dx_rel, dy_rel, qw_rel, qz_rel]
+    where translation is expressed in P_old frame.
+    """
+    x_o, y_o, qw_o, qz_o = P_old
+    x_n, y_n, qw_n, qz_n = P_new
+
+    th_o = quat_to_yaw(qw_o, qz_o)
+    th_n = quat_to_yaw(qw_n, qz_n)
+    dx = x_n - x_o
+    dy = y_n - y_o
+
+    cos_o = np.cos(th_o)
+    sin_o = np.sin(th_o)
+
+    dx_rel =  cos_o * dx + sin_o * dy
+    dy_rel = -sin_o * dx + cos_o * dy
+
+    dth = wrap_to_pi(th_n - th_o)
+    qw_rel, qz_rel = yaw_to_quat(dth)
+
+    return np.array([dx_rel, dy_rel, qw_rel, qz_rel])
+
+def oplus_se2(P_old, Delta_P):
+    """
+    P_new = oplus(P_old, Delta_P)
+
+    Inputs:
+        P_old   = [x_o, y_o, qw_o, qz_o]
+        Delta_P = [dx, dy, qw_d, qz_d]  (in local frame of P_old)
+
+    Returns:
+        P_new   = [x_n, y_n, qw_n, qz_n]
+    """
+    x_o, y_o, qw_o, qz_o = P_old
+    dx, dy, qw_d, qz_d = Delta_P
+
+    # Convert to yaw
+    th_o = quat_to_yaw(qw_o, qz_o)
+    dth  = quat_to_yaw(qw_d, qz_d)
+
+    # Rotate local delta into world frame
+    cos_o = np.cos(th_o)
+    sin_o = np.sin(th_o)
+
+    x_n = x_o + cos_o * dx - sin_o * dy
+    y_n = y_o + sin_o * dx + cos_o * dy
+
+    # Compose rotation
+    th_n = wrap_to_pi(th_o + dth)
+
+    # Back to quaternion
+    qw_n, qz_n = yaw_to_quat(th_n)
+
+    return np.array([x_n, y_n, qw_n, qz_n])

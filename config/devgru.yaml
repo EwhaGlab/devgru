@@ -71,9 +71,9 @@ eval_freq: 1 # in epochs
 data_split:
   split_ratio: 0.8  # (train 0.8, val 0.2)
   former:
-    data_folder: /media/data/mydata/former_ewha/mixed_20K
-    train: /media/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
-    test:  /media/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
+    data_folder: /storage/data/mydata/former_ewha_depth/mixed_2K
+    train: /storage/data/mydata/viznav/data_splits/former_ewha_depth/mixed_2K/train
+    test:  /storage/data/mydata/viznav/data_splits/former_ewha_depth/mixed_2K/test
     waypoint_spacing: 3
     negative_mining: True
 #################################################################
@@ -81,9 +81,9 @@ data_split:
 #################################################################
 datasets:
   former: 
-    data_folder: /media/data/mydata/former_ewha/mixed_20K
-    train: /media/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
-    test:  /media/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
+    data_folder: /storage/data/mydata/former_ewha_depth/mixed_2K
+    train: /storage/data/mydata/viznav/data_splits/former_ewha_depth/mixed_2K/train
+    test:  /storage/data/mydata/viznav/data_splits/former_ewha_depth/mixed_2K/test
     end_slack: 3
     goals_per_obs: 1
     negative_mining: True
@@ -95,9 +95,9 @@ datasets:
 #################################################################
 collision_datasets:
   former:
-    data_folder: /media/data/mydata/former_ewha/mixed_20K
-    train: /media/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
-    test:  /media/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
+    data_folder: /storage/data/mydata/former_ewha/mixed_2K
+    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_2K/train
+    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_2K/test
     waypoint_spacing: 3
     
 ##################################################################
@@ -106,8 +106,8 @@ collision_datasets:
 deployment:
     dataset_name: former
     topomap_name: T1 #T32 #T1-1 # 
-    nav_model_type: devgru_ap #dev_gru
-    col_model_type: devgru_cp #depth_coll  # depth_sg_coll
+    nav_model_type: devgru_ap-mixed20K #dev_gru
+    col_model_type: devgru_cp-mixed20K #depth_coll  # depth_sg_coll
     use_coll_pred_model: True
     goal_type: depth
     waypoint_spacing: 3

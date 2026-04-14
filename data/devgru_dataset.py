@@ -84,6 +84,8 @@ class DevGRU_Dataset(Dataset):
         if "" in self.traj_names:
             self.traj_names.remove("")
 
+        self.use_rgb = self._check_rgb_available()
+
         self.image_size = image_size
         self.waypoint_spacing = waypoint_spacing
         #self.distance_categories = list( range(min_frame_dist, max_frame_dist + 1, self.waypoint_spacing) )
@@ -129,6 +131,13 @@ class DevGRU_Dataset(Dataset):
         else:
             self.num_action_params = 2
 
+    def _check_rgb_available(self):
+        for traj in self.traj_names[:5]:  # sample few
+            path = get_colldata_path(traj, 0, 'rgb')
+            if os.path.exists(path):
+                return True
+        return False
+
     def __getstate__(self):  # hkm
         state = self.__dict__.copy()
         #state["_image_cache"] = None
@@ -171,7 +180,7 @@ class DevGRU_Dataset(Dataset):
     #     """
     #     If the cache file doesn't exist, create it by iterating through the dataset and writing each image to the cache
     #     """
-        if not os.path.exists(rgb_cache_filename):
+        if self.use_rgb and not os.path.exists(rgb_cache_filename):
             tqdm_iterator = tqdm.tqdm(
                 self.index_to_data,           # ( traj_name,  time )
                 disable=not use_tqdm,
@@ -186,7 +195,7 @@ class DevGRU_Dataset(Dataset):
                         with open(rgb_path, "rb") as f:
                             txn.put(rgb_path.encode(), f.read())
 
-        if not os.path.exists(goal_rgb_cache_filename):
+        if self.use_rgb and not os.path.exists(goal_rgb_cache_filename):
             tqdm_iterator = tqdm.tqdm(
                 self.goals_index,           # ( traj_name,  time )
                 disable=not use_tqdm,
@@ -239,9 +248,12 @@ class DevGRU_Dataset(Dataset):
                         txn.put(goal_depth_path.encode(), dm_bytes)
 
         # Reopen the cache file in read-only mode
-        self._rgb_cache: lmdb.Environment = lmdb.open(rgb_cache_filename, readonly=True)
+        if self.use_rgb:
+            self._rgb_cache: lmdb.Environment = lmdb.open(rgb_cache_filename, readonly=True)
         self._depth_cache: lmdb.Environment = lmdb.open(depth_cache_filename, readonly=True)
-        self._goal_rgb_cache: lmdb.Environment = lmdb.open(goal_rgb_cache_filename, readonly=True)
+
+        if self.use_rgb:
+            self._goal_rgb_cache: lmdb.Environment = lmdb.open(goal_rgb_cache_filename, readonly=True)
         self._goal_depth_cache: lmdb.Environment = lmdb.open(goal_depth_cache_filename, readonly=True)
 
     def _build_index(self, use_tqdm: bool = False):
@@ -289,6 +301,9 @@ class DevGRU_Dataset(Dataset):
 
 
     def _load_rgb(self, trajectory_name, time):
+        if not self.use_rgb:
+            return None
+
         rgb_path = get_colldata_path(trajectory_name, time, 'rgb')
         try:
             with self._rgb_cache.begin() as txn:
@@ -311,6 +326,9 @@ class DevGRU_Dataset(Dataset):
             print(f"Failed to load depth image {depth_path}")
 
     def _load_goal_rgb(self, trajectory_name):
+        if not self.use_rgb:
+            return None
+
         goal_rgb_path = get_colldata_path(trajectory_name, -1, 'rgb')
         try:
             with self._goal_rgb_cache.begin() as txn:
@@ -469,11 +487,16 @@ class DevGRU_Dataset(Dataset):
         context = [(f_curr, t) for t in context_time]
         goal_time = -1
 
-        obs_rgbs = torch.cat([self._load_rgb(f, t) for f, t in context])        # hkm
-        obs_depths = torch.cat([self._load_depth(f, t) for f, t in context])    # hkm
-        # print("obs minmax: %f %f"%(torch.min(obs_depths), torch.max(obs_depths)) )
-        # Load goal image
-        goal_rgb = self._load_goal_rgb(f_goal)  # hkm
+        if self.use_rgb:
+            obs_rgbs = torch.cat([self._load_rgb(f, t) for f, t in context])        # hkm
+            goal_rgb = self._load_goal_rgb(f_goal)  # hkm
+        else:
+            # create EMPTY tensors
+            C, H, W = 3, self.image_size[0], self.image_size[1]
+            obs_rgbs = torch.zeros((self.context_size * C, H, W))
+            goal_rgb = torch.zeros((C, H, W))
+
+        obs_depths = torch.cat([self._load_depth(f, t) for f, t in context])  # hkm
         goal_depth = self._load_goal_depth(f_goal)  # hkm
 
         # Load other trajectory data
