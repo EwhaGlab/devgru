@@ -14,6 +14,15 @@ def tmux(*args):
 def pane_send(pane: str, line: str):
     tmux("send-keys", "-t", pane, line, "Enter")
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("true", "1", "yes", "y"):
+        return True
+    if v.lower() in ("false", "0", "no", "n"):
+        return False
+    raise argparse.ArgumentTypeError("Boolean value expected.")
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -27,6 +36,11 @@ def main():
 
     parser.add_argument("--conda_env", default="devgru_deployment")
     parser.add_argument("--no_conda", action="store_true")
+
+    parser.add_argument("--save-viz-status",
+                        "-s",
+                        default="False", type=str2bool,
+                        help="Value for -s flag in navigate_viz.py")
 
     args = parser.parse_args()
 
@@ -71,8 +85,12 @@ def main():
         pane_send(pane, f"cd {shlex.quote(workdir)}")
         pane_send(pane, cmd)
 
-    # Start navigate_viz
-    init_pane(P0, f"python {shlex.quote(navigate_viz_py)}")
+    # Start navigate_viz w/ saving status imgs
+    nav_cmd = f"python {shlex.quote(navigate_viz_py)}"
+    nav_cmd += f" -s {shlex.quote(str(args.save_viz_status))}"
+    print(nav_cmd)
+    #init_pane(P0, f"python {shlex.quote(navigate_viz_py)} -s True")
+    init_pane(P0, nav_cmd)
 
     # Small delay (important for ROS topics readiness)
     time.sleep(1.0)

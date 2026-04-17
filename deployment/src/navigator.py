@@ -96,7 +96,8 @@ class navigator():
                  topomap_m1_to_sg: list,    # (for visualization)
                  config, data_config, robot_config,
                  save_viz_status: bool = False):
-
+        
+        self.save_viz_status = save_viz_status
         self.name = name
         self.model_params = config
         self.data_config = data_config
@@ -224,8 +225,10 @@ class navigator():
         # subscribers
         self.rgb_curr_msg = rospy.Subscriber(RGB_TOPIC, Image, self.callback_curr_obs, queue_size=1)
 
-        # self.draw_navdata_sub = rospy.Subscriber(NAVDATA_TOPIC, navdata_stamped, self.draw_simple_waypoint_callback,
-        #                                           queue_size=1)
+        if self.save_viz_status:
+            self.draw_navdata_sub = rospy.Subscriber(NAVDATA_TOPIC, navdata_stamped, 
+                                                    self.draw_simple_waypoint_callback,
+                                                    queue_size=1)
 
         # log_root = "/home/glab/results/dev_gru/navdata_logs"
         # time_id = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -1128,6 +1131,7 @@ class navigator():
         nsg_x_w = w_H_nsg[0,3]
         nsg_y_w = w_H_nsg[1,3]
 
+        ################################################################################       
         osg_x_w, osg_y_w, osg_th_w = self.topomap_odom[self.curr_sg_idx]
         dx = nsg_x_w - osg_x_w
         dy = nsg_y_w - osg_y_w
@@ -1139,16 +1143,17 @@ class navigator():
         ################################################################################
         # SE2 Config
         ################################################################################
-        # nsg_x, nsg_y, _, _, _, nsg_th = rm.htm_to_xyzrpy(w_H_r)
-        # [nsg_qw, nsg_qz] = rm.theta_to_qwqz(nsg_th)
-        # [osg_qw, osg_qz] = rm.theta_to_qwqz(osg_th)
-        # Delta_P = rm.ominus_se2([nsg_x, nsg_y, nsg_qw, nsg_qz], [osg_x, osg_y, osg_qw, osg_qz])
-        # for idx in range(self.curr_sg_idx, len(self.topomap_odom)):
-        #     osg_x, osg_y, osg_th = self.topomap_odom[idx]
-        #     [osg_qw, osg_qz] = rm.theta_to_qwqz(osg_th)
-        #     x_n, y_n, qw_n, qz_n = rm.oplus_se2([osg_x, osg_y, osg_qw, osg_qz], Delta_P)
-        #     th_n = rm.quat_to_yaw(qw_n, qz_n)
-        #     self.topomap_odom[idx] = [x_n, y_n, th_n]
+        #osg_x_w, osg_y_w, osg_th_w = self.topomap_odom[self.curr_sg_idx]
+        #nsg_x_w, nsg_y_w, _, _, _, nsg_th_w = rm.htm_to_xyzrpy(w_H_r)
+        #[nsg_qw, nsg_qz] = rm.theta_to_qwqz(nsg_th_w)
+        #[osg_qw, osg_qz] = rm.theta_to_qwqz(osg_th_w)
+        #Delta_P = rm.ominus_se2([nsg_x_w, nsg_y_w, nsg_qw, nsg_qz], [osg_x_w, osg_y_w, osg_qw, osg_qz])
+        #for idx in range(self.curr_sg_idx, len(self.topomap_odom)):
+            #osg_x, osg_y, osg_th = self.topomap_odom[idx]
+            #[osg_qw, osg_qz] = rm.theta_to_qwqz(osg_th)
+            #x_n, y_n, qw_n, qz_n = rm.oplus_se2([osg_x, osg_y, osg_qw, osg_qz], Delta_P)
+            #th_n = rm.quat_to_yaw(qw_n, qz_n)
+            #self.topomap_odom[idx] = [x_n, y_n, osg_th]
 
         ################################################################################
         # SE3 Config

@@ -77,6 +77,16 @@ normalize = model_params['normalize']
 len_traj_pred = model_params['len_traj_pred']
 
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("true", "1", "yes", "y"):
+        return True
+    if v.lower() in ("false", "0", "no", "n"):
+        return False
+    raise argparse.ArgumentTypeError("Boolean value expected.")
+
+
 def load_pose_txt(pose_txt):
     pose_info = np.loadtxt(pose_txt)
     print(pose_info.shape)
@@ -309,12 +319,14 @@ if __name__ == "__main__":
     parser.add_argument("--save-viz-status",
                         "-s",
                         default="False",
-                        type=bool,
+                        type=str2bool,
                         help="whether save viz status figures to disk or not",
                     )
 
     args = parser.parse_args()
     print(f"Using {device}")
+    print("vis status: ", args.save_viz_status)
+    print("\n")
     main(args)
 
 
