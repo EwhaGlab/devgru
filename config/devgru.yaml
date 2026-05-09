@@ -5,7 +5,7 @@ project_name: devgru-release
 use_wandb: False # set to false if you don't want to log to wandb
 train: True
 batch_size: 256 # 32 for colldata,  256 for navdata
-epochs: 100 #75
+epochs: 100 #72 # 
 gpu_ids: [0]
 num_workers: 12
 lr: 5e-4
@@ -65,15 +65,16 @@ eval_fraction: 0.25
 wandb_log_freq: 10 # in iterations
 eval_freq: 1 # in epochs
 
+log_base_dir: "" #/storage/data/results
 #################################################################
 # configs for split_data.py 
 #################################################################
 data_split:
   split_ratio: 0.8  # (train 0.8, val 0.2)
   former:
-    data_folder: /storage/data/mydata/former_ewha_depth/mixed_2K
-    train: /storage/data/mydata/viznav/data_splits/former_ewha_depth/mixed_2K/train
-    test:  /storage/data/mydata/viznav/data_splits/former_ewha_depth/mixed_2K/test
+    data_folder: /storage/data/mydata/former_ewha/mixed_20K
+    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
+    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
     waypoint_spacing: 3
     negative_mining: True
 #################################################################
@@ -81,9 +82,9 @@ data_split:
 #################################################################
 datasets:
   former: 
-    data_folder: /storage/data/mydata/former_ewha_depth/mixed_2K
-    train: /storage/data/mydata/viznav/data_splits/former_ewha_depth/mixed_2K/train
-    test:  /storage/data/mydata/viznav/data_splits/former_ewha_depth/mixed_2K/test
+    data_folder: /storage/data/mydata/former_ewha/mixed_20K
+    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
+    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
     end_slack: 3
     goals_per_obs: 1
     negative_mining: True
@@ -95,9 +96,9 @@ datasets:
 #################################################################
 collision_datasets:
   former:
-    data_folder: /storage/data/mydata/former_ewha/mixed_2K
-    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_2K/train
-    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_2K/test
+    data_folder: /storage/data/mydata/former_ewha/mixed_20K
+    train: /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/train
+    test:  /storage/data/mydata/viznav/data_splits/former_ewha/mixed_20K/test
     waypoint_spacing: 3
     
 ##################################################################

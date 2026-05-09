@@ -9,7 +9,7 @@ import lmdb
 import math
 import torch
 from torch.utils.data import Dataset
-
+import glob
 from os.path import dirname, abspath
 BASE_DIR = dirname(dirname(abspath(__file__)))
 import sys
@@ -133,8 +133,10 @@ class DevGRU_Dataset(Dataset):
 
     def _check_rgb_available(self):
         for traj in self.traj_names[:5]:  # sample few
-            path = get_colldata_path(traj, 0, 'rgb')
-            if os.path.exists(path):
+            png_files = glob.glob(os.path.join(traj, "rgb*.png"))
+            jpg_files = glob.glob(os.path.join(traj, "rgb*.jpg"))
+
+            if len(png_files) > 0 or len(jpg_files) > 0:
                 return True
         return False
 

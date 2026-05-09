@@ -1,6 +1,6 @@
 # defaults for training
-project_name: vint
-run_name: vint
+project_name: devgru
+run_name: devgru
 
 # training setup
 use_wandb: True # set to false if you don't want to log to wandb
@@ -17,7 +17,6 @@ clipping: False
 train_subset: 1.
 
 # model params
-model_type: gnm
 obs_encoding_size: 1024
 goal_encoding_size: 1024
 

@@ -337,7 +337,7 @@ if __name__ == "__main__":
     #run_name = 'action_pred'
     run_name = "action_pred_" + time.strftime("%Y_%m_%d_%H_%M_%S")
     config["project_folder"] = os.path.join(
-        "logs", config["project_name"], run_name #config["run_name"]
+        config["log_base_dir"], "logs", config["project_name"], run_name #config["run_name"]
     )
     os.makedirs(
         config[
