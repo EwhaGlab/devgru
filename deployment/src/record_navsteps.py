@@ -85,6 +85,26 @@ class NavstepDumperNode:
         self.map_to_base = None
         self._navstep_time = None
         
+        model_param_name = "/ai_nav/model"
+        rospy.loginfo(f"Waiting for param {model_param_name} ...")
+        while not rospy.has_param(model_param_name) and not rospy.is_shutdown():
+            rospy.sleep(0.1)
+
+        cp_chkpth_param_name = "/ai_nav/cp_ckpth_name"
+        rospy.loginfo(f"Waiting for devgru param {cp_chkpth_param_name} ...")
+        while not rospy.has_param(cp_chkpth_param_name) and not rospy.is_shutdown():
+            rospy.sleep(0.1)
+        
+        ap_chkpth_param_name = "/ai_nav/ap_ckpth_name"
+        rospy.loginfo(f"Waiting for devgru param {ap_chkpth_param_name} ...")
+        while not rospy.has_param(ap_chkpth_param_name) and not rospy.is_shutdown():
+            rospy.sleep(0.1)
+        
+        self.nav_model = rospy.get_param(model_param_name)
+        self.cp_chkpth_name = rospy.get_param(cp_chkpth_param_name)
+        self.ap_chkpth_name = rospy.get_param(ap_chkpth_param_name)
+        print("recording %s  model res w/ chkpths: %s & %s \n"%(self.nav_model, self.cp_chkpth_name, self.ap_chkpth_name ) )
+        
         rostime = rospy.Time.now()
         self.nav_begin_time = rostime
         
@@ -352,6 +372,7 @@ class NavstepDumperNode:
         nav_summary_path = f"{self.out_dir}/nav_summary.txt"
         with open(nav_summary_path, "w") as f:
             f.write(f"devgru summary on {devgru_config['deployment']['topomap_name']}\n")
+            f.write(f"chkpth names: {self.ap_chkpth_name} / {self.cp_chkpth_name}\n")
             f.write(f"final goal reached: {self._is_goal_reached}\n")
 
             f.write(f"covered node idx / last node idx : {covered_idx} / {num_nodes-1}\n")

@@ -106,7 +106,7 @@ collision_datasets:
 ##################################################################
 deployment:
     dataset_name: former
-    topomap_name: T1 #T32 #T1-1 # 
+    topomap_name: T501 #T1 #T32 #T1-1 # 
     nav_model_type: devgru_ap #dev_gru
     col_model_type: devgru_cp #depth_coll  # depth_sg_coll
     use_coll_pred_model: True

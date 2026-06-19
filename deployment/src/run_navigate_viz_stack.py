@@ -164,13 +164,17 @@ def main():
             print(f"[ERROR] file not found: {p}", file=sys.stderr)
             sys.exit(1)
 
-    # Fail if session exists
-    has = subprocess.run(["tmux", "has-session", "-t", session],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # Kill old tmux session if it already exists
+    has = subprocess.run(
+        ["tmux", "has-session", "-t", session],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
     if has.returncode == 0:
-        print(f"[ERROR] tmux session already exists: {session}", file=sys.stderr)
-        print(f"        Kill it manually if needed: tmux kill-session -t {session}", file=sys.stderr)
-        sys.exit(1)
+        print(f"[WARN] tmux session already exists: {session}", file=sys.stderr)
+        print(f"[WARN] killing old session: tmux kill-session -t {session}", file=sys.stderr)
+        tmux("kill-session", "-t", session, check=False)
 
     # ROS for joystick watcher
     stop_event = threading.Event()

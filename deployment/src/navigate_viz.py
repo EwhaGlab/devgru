@@ -150,7 +150,6 @@ def main(args: argparse.Namespace):
     col_model = col_model.to(device)
     col_model.eval()
 
-
     if os.path.exists(nav_ckpth_path):
         print(f"Loading nav model from {nav_ckpth_path}")
     else:
@@ -163,6 +162,12 @@ def main(args: argparse.Namespace):
     )
     nav_model = nav_model.to(device)
     nav_model.eval()
+
+    cp_ckpth_name = os.path.basename(col_ckpth_path)
+    rospy.set_param("/ai_nav/cp_ckpth_name", col_ckpth_name)
+
+    ap_ckpth_name = os.path.basename(nav_ckpth_path)
+    rospy.set_param("/ai_nav/ap_ckpth_name", nav_ckpth_name)
 
     print("[DEBUG] nav model class:", type(nav_model))
     print("[DEBUG] nav model module:", type(nav_model).__module__)
@@ -223,6 +228,7 @@ def main(args: argparse.Namespace):
     rospy.init_node("navigator_parent_node", anonymous=False)
     rate = rospy.Rate(RATE)
 
+    rospy.set_param("/ai_nav/model", args.model)
     goal_pub = rospy.Publisher("/topoplan/reached_goal", Bool, queue_size=1)
 
     # navigator instance
@@ -312,7 +318,13 @@ def main(args: argparse.Namespace):
                     #nav._correction_latch = False
                     break
 
-
+    if rospy.has_param("/ai_nav/model"):
+        rospy.delete_param("/ai_nav/model")
+    if rospy.has_param("/ai_nav/ap_ckpth_name"):
+        rospy.delete_param("/ai_nav/ap_ckpth_name")
+    if rospy.has_param("/ai_nav/cp_ckpth_name"):
+        rospy.delete_param("/ai_nav/cp_ckpth_name")
+    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Code to run DevGRU on the Former")
@@ -322,6 +334,14 @@ if __name__ == "__main__":
                         type=str2bool,
                         help="whether save viz status figures to disk or not",
                     )
+
+    parser.add_argument(
+        "--model",
+        "-m",
+        default="devgru",
+        type=str,
+        help="model name (only devgru is supported) ",
+    )
 
     args = parser.parse_args()
     print(f"Using {device}")
