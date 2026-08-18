@@ -232,7 +232,7 @@ After configuring the paths, execute the following command to generate the topol
 ```
 source set_ros_local.sh
 cd ~/catkin_ws/src/navdata_collector/run_script/data_extractor
-python generate_topomap_from_bag.py
+./generate_topomap_from_bag.sh
 ```
 
 `set_ros_local.sh` sets `ROS_MASTER_URI` to 127.0.0.1, disconnecting the session from the robot’s ROS master.
@@ -282,3 +282,15 @@ We thank the authors for making their code publicly available.
 Parts of the data processing pipeline and source code are adapted from the ViNT project, with modifications to support the DevGRU framework.
 
 ---
+## Citation
+
+If you find **DevGRU** useful in your research, please cite our paper:
+
+```bibtex
+@article{HanKim26,
+  author  = {Kyung Min Han and Eunsom Kim and Young J. Kim},
+  title   = {DevGRU: Depth-guided Visual Navigation using a Collision-aware Recurrent Model},
+  journal = {IEEE Robotics and Automation Letters (RA-L)},
+  year    = {2026}
+}
+```
